@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Aptos:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Monaspace+Neon:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  :root {
+    --radius: 0.5rem;
+    
+    /* Figma Dark Theme Colors (Default) */
+    --azure-blue: 0 120 212;
+    --azure-blue-light: 240 248 255;
+    --azure-blue-dark: 0 90 158;
+    
+    /* Figma specified colors for dark theme */
+    --figma-black: 0 0 0;
+    --figma-dark-gray: 20 20 20;
+    --figma-medium-gray: 41 41 41;
+    --figma-input-gray: 82 82 82;
+    --figma-light-gray: 66 66 66;
+    --figma-text-primary: 255 255 255;
+    --figma-text-secondary: 212 212 212;
+    
+    /* Updated gray scale using Figma colors */
+    --azure-gray-50: 0 0 0;        /* #000000 - background */
+    --azure-gray-100: 20 20 20;    /* #141414 */
+    --azure-gray-200: 41 41 41;    /* #292929 */
+    --azure-gray-300: 66 66 66;    /* #424242 */
+    --azure-gray-400: 96 94 92;
+    --azure-gray-500: 150 148 146;
+    --azure-gray-600: 200 198 196;
+    --azure-gray-700: 212 212 212; /* #D4D4D4 - secondary text */
+    --azure-gray-800: 243 242 241;
+    --azure-gray-900: 255 255 255; /* #FFFFFF - primary text */
+    
+    /* Sidebar variables for dark theme (default) */
+    --sidebar-background: 0 0 0;
+    --sidebar-foreground: 255 255 255;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 255 255 255;
+    --sidebar-accent: 20 20 20;
+    --sidebar-accent-foreground: 255 255 255;
+    --sidebar-border: 41 41 41;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  
+}
+

@@ -10,6 +10,10 @@
 *.userosscache
 *.sln.docstates
 *.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -416,3 +420,383 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# =======================
+# FRONTEND SPECIFIC (React/TypeScript/Vite)
+# =======================
+
+# Dependencies
+src/frontend/node_modules/
+**/node_modules/
+
+# Build outputs
+src/frontend/dist/
+src/frontend/build/
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Package manager files
+src/frontend/npm-debug.log*
+src/frontend/yarn-debug.log*
+src/frontend/yarn-error.log*
+src/frontend/pnpm-debug.log*
+src/frontend/lerna-debug.log*
+
+# Runtime data
+src/frontend/pids
+src/frontend/*.pid
+src/frontend/*.seed
+src/frontend/*.pid.lock
+
+# Coverage directory used by tools like istanbul
+src/frontend/coverage/
+src/frontend/.nyc_output/
+
+# Grunt intermediate storage
+src/frontend/.grunt/
+
+# Bower dependency directory
+src/frontend/bower_components/
+
+# ESLint cache
+src/frontend/.eslintcache
+
+# Stylelint cache
+src/frontend/.stylelintcache
+
+# Microbundle cache
+src/frontend/.rpt2_cache/
+src/frontend/.rts2_cache_cjs/
+src/frontend/.rts2_cache_es/
+src/frontend/.rts2_cache_umd/
+
+# Optional npm cache directory
+src/frontend/.npm
+
+# Optional eslint cache
+src/frontend/.eslintcache
+
+# Optional REPL history
+src/frontend/.node_repl_history
+
+# Output of 'npm pack'
+src/frontend/*.tgz
+
+# Yarn Integrity file
+src/frontend/.yarn-integrity
+
+# dotenv environment variables file
+src/frontend/.env
+src/frontend/.env.test
+src/frontend/.env.production
+
+# parcel-bundler cache
+src/frontend/.cache
+src/frontend/.parcel-cache
+
+# Next.js build output
+src/frontend/.next
+src/frontend/out/
+
+# Nuxt.js build / generate output
+src/frontend/.nuxt
+src/frontend/dist
+
+# Gatsby files
+src/frontend/.cache/
+src/frontend/public
+
+# Storybook build outputs
+src/frontend/.out
+src/frontend/.storybook-out
+
+# Temporary folders
+src/frontend/tmp/
+src/frontend/temp/
+
+# TypeScript cache
+src/frontend/*.tsbuildinfo
+
+# Vite
+src/frontend/.vite/
+
+# Rollup cache
+src/frontend/.rollup.cache/
+
+# =======================
+# BACKEND SPECIFIC (Python)
+# =======================
+
+# Byte-compiled / optimized / DLL files
+src/backend/__pycache__/
+src/backend/*.py[cod]
+src/backend/*$py.class
+
+# C extensions
+src/backend/*.so
+
+# Distribution / packaging
+src/backend/.Python
+src/backend/build/
+src/backend/develop-eggs/
+src/backend/dist/
+src/backend/downloads/
+src/backend/eggs/
+src/backend/.eggs/
+src/backend/lib/
+src/backend/lib64/
+src/backend/parts/
+src/backend/sdist/
+src/backend/var/
+src/backend/wheels/
+src/backend/pip-wheel-metadata/
+src/backend/share/python-wheels/
+src/backend/*.egg-info/
+src/backend/.installed.cfg
+src/backend/*.egg
+src/backend/MANIFEST
+
+# PyInstaller
+src/backend/*.manifest
+src/backend/*.spec
+
+# Installer logs
+src/backend/pip-log.txt
+src/backend/pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+src/backend/htmlcov/
+src/backend/.tox/
+src/backend/.nox/
+src/backend/.coverage
+src/backend/.coverage.*
+src/backend/.cache
+src/backend/nosetests.xml
+src/backend/coverage.xml
+src/backend/*.cover
+src/backend/*.py,cover
+src/backend/.hypothesis/
+src/backend/.pytest_cache/
+
+# Translations
+src/backend/*.mo
+src/backend/*.pot
+
+# Django stuff:
+src/backend/*.log
+src/backend/local_settings.py
+src/backend/db.sqlite3
+src/backend/db.sqlite3-journal
+
+# Flask stuff:
+src/backend/instance/
+src/backend/.webassets-cache
+
+# Scrapy stuff:
+src/backend/.scrapy
+
+# Sphinx documentation
+src/backend/docs/_build/
+
+# PyBuilder
+src/backend/target/
+
+# Jupyter Notebook
+src/backend/.ipynb_checkpoints
+
+# IPython
+src/backend/profile_default/
+src/backend/ipython_config.py
+
+# pyenv
+src/backend/.python-version
+
+# pipenv
+src/backend/Pipfile.lock
+
+# PEP 582
+src/backend/__pypackages__/
+
+# Celery stuff
+src/backend/celerybeat-schedule
+src/backend/celerybeat.pid
+
+# SageMath parsed files
+src/backend/*.sage.py
+
+# Environments
+src/backend/.env
+src/backend/.venv
+src/backend/env/
+src/backend/venv/
+src/backend/ENV/
+src/backend/env.bak/
+src/backend/venv.bak/
+
+# Spyder project settings
+src/backend/.spyderproject
+src/backend/.spyproject
+
+# Rope project settings
+src/backend/.ropeproject
+
+# mkdocs documentation
+src/backend/site/
+
+# mypy
+src/backend/.mypy_cache/
+src/backend/.dmypy.json
+src/backend/dmypy.json
+
+# Pyre type checker
+src/backend/.pyre/
+
+# Poetry
+src/backend/.poetry/
+
+# =======================
+# INFRASTRUCTURE SPECIFIC (Azure/Bicep)
+# =======================
+
+# Azure Functions artifacts
+bin
+obj
+
+# Azure Functions local settings
+local.settings.json
+
+# Azure deployment credentials
+.azure/
+.deployment
+
+# Azure Resource Manager Templates
+infra/*.parameters.local.json
+infra/*.parameters.dev.json
+infra/*.parameters.prod.json
+infra/*.parameters.staging.json
+
+# Bicep build outputs
+infra/**/*.json
+!infra/main.json
+!infra/main.parameters.json
+!infra/abbreviations.json
+
+# Terraform
+infra/**/.terraform/
+infra/**/.terraform.lock.hcl
+infra/**/terraform.tfstate
+infra/**/terraform.tfstate.backup
+infra/**/terraform.tfvars
+infra/**/terraform.tfvars.json
+infra/**/*.tfplan
+infra/**/*.tfstate
+
+# ARM template outputs
+infra/**/azuredeploy.parameters.json
+infra/**/azuredeploy.json
+
+# =======================
+# DEPLOYMENT & SECRETS
+# =======================
+
+# Deployment scripts
+deployment/secrets/
+deployment/keys/
+deployment/*.key
+deployment/*.pem
+deployment/*.p12
+deployment/*.pfx
+
+# Docker
+.dockerignore
+**/docker-compose.override.yml
+**/docker-compose.local.yml
+
+# Kubernetes
+**/k8s-local/
+**/k8s-secrets/
+
+# =======================
+# GENERAL DEVELOPMENT
+# =======================
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.sublime-workspace
+.sublime-project
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.metadata
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.loadpath
+.recommenders
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+*.swp
+*.swo
+
+# Archive files
+*.zip
+*.tar.gz
+*.tar.bz2
+*.rar
+
+# System files
+*.pid
+*.seed
+*.pid.lock

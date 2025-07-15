@@ -1,0 +1,13 @@
+
+name: se-agent-factory
+metadata:
+  template: se-agent-factory@0.0.1-beta
+services:
+  backend:
+    project: ./src/backend
+    language: python
+    host: containerapp
+  frontend:
+    project: ./src/frontend
+    language: js
+    host: containerapp
