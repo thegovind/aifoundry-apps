@@ -35,4 +35,4 @@ services:
 
 networks:
   default:
-    name: se-agent-factory-network 
+    name: aifoundry-apps-network 

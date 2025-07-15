@@ -1,5 +1,5 @@
-# Test deployment script for SE Agent Factory
-Write-Host "🚀 Testing SE Agent Factory Deployment" -ForegroundColor Green
+# Test deployment script for AIFoundry.app 
+Write-Host "🚀 Testing AIFoundry.app  Deployment" -ForegroundColor Green
 Write-Host "======================================" -ForegroundColor Green
 
 # Function to check if URL is accessible
@@ -99,7 +99,7 @@ if ($FrontendUrl) {
 }
 
 Write-Host ""
-Write-Host "🎉 All tests passed! Your SE Agent Factory is ready to use." -ForegroundColor Green
+Write-Host "🎉 All tests passed! Your AIFoundry.app  is ready to use." -ForegroundColor Green
 Write-Host ""
 Write-Host "📋 Next steps:" -ForegroundColor Cyan
 Write-Host "1. Open your frontend URL in a browser"

@@ -1,7 +1,7 @@
-# SE Agent Factory - Deployment Guide
+# AIFoundry.app  - Deployment Guide
 
 ## Overview
-This guide covers testing and deploying the SE Agent Factory application to Azure Container Apps.
+This guide covers testing and deploying the AIFoundry.app  application to Azure Container Apps.
 
 ## Prerequisites
 
@@ -38,8 +38,8 @@ This guide covers testing and deploying the SE Agent Factory application to Azur
 #### Backend Testing
 ```bash
 cd ../src/backend
-docker build -t se-agent-factory-backend .
-docker run -p 8000:8000 se-agent-factory-backend
+docker build -t aifoundry-apps-backend .
+docker run -p 8000:8000 aifoundry-apps-backend
 
 # Test endpoints
 curl http://localhost:8000/healthz
@@ -49,8 +49,8 @@ curl http://localhost:8000/api/templates
 #### Frontend Testing
 ```bash
 cd ../src/frontend
-docker build -t se-agent-factory-frontend .
-docker run -p 3000:80 se-agent-factory-frontend
+docker build -t aifoundry-apps-frontend .
+docker run -p 3000:80 aifoundry-apps-frontend
 
 # Test in browser
 open http://localhost:3000
@@ -130,8 +130,8 @@ chmod +x test-deployment.sh
 ### Viewing Logs
 ```bash
 # View container app logs
-az containerapp logs show --name se-agent-factory-backend --resource-group se-agent-factory-rg
-az containerapp logs show --name se-agent-factory-frontend --resource-group se-agent-factory-rg
+az containerapp logs show --name aifoundry-apps-backend --resource-group aifoundry-apps-rg
+az containerapp logs show --name aifoundry-apps-frontend --resource-group aifoundry-apps-rg
 ```
 
 ## Scaling and Configuration
@@ -139,10 +139,10 @@ az containerapp logs show --name se-agent-factory-frontend --resource-group se-a
 ### Scaling Container Apps
 ```bash
 # Scale backend
-az containerapp update --name se-agent-factory-backend --resource-group se-agent-factory-rg --min-replicas 2 --max-replicas 20
+az containerapp update --name aifoundry-apps-backend --resource-group aifoundry-apps-rg --min-replicas 2 --max-replicas 20
 
 # Scale frontend
-az containerapp update --name se-agent-factory-frontend --resource-group se-agent-factory-rg --min-replicas 2 --max-replicas 20
+az containerapp update --name aifoundry-apps-frontend --resource-group aifoundry-apps-rg --min-replicas 2 --max-replicas 20
 ```
 
 ### Environment Variables
@@ -171,7 +171,7 @@ az containerapp update --name se-agent-factory-frontend --resource-group se-agen
 ### Monitoring Costs
 ```bash
 # Check resource usage
-az containerapp show --name se-agent-factory-backend --resource-group se-agent-factory-rg --query properties.template.containers[0].resources
+az containerapp show --name aifoundry-apps-backend --resource-group aifoundry-apps-rg --query properties.template.containers[0].resources
 ```
 
 ## Cleanup
@@ -179,7 +179,7 @@ az containerapp show --name se-agent-factory-backend --resource-group se-agent-f
 ### Remove Resources
 ```bash
 # Using Azure CLI
-az group delete --name se-agent-factory-rg --yes --no-wait
+az group delete --name aifoundry-apps-rg --yes --no-wait
 
 # Using Azure Developer CLI (from project root)
 azd down
@@ -202,13 +202,13 @@ deployment/
 ### Useful Commands
 ```bash
 # Check container app status
-az containerapp show --name se-agent-factory-backend --resource-group se-agent-factory-rg --query properties.provisioningState
+az containerapp show --name aifoundry-apps-backend --resource-group aifoundry-apps-rg --query properties.provisioningState
 
 # View configuration
-az containerapp show --name se-agent-factory-backend --resource-group se-agent-factory-rg --query properties.configuration
+az containerapp show --name aifoundry-apps-backend --resource-group aifoundry-apps-rg --query properties.configuration
 
 # Check ingress configuration
-az containerapp show --name se-agent-factory-backend --resource-group se-agent-factory-rg --query properties.configuration.ingress
+az containerapp show --name aifoundry-apps-backend --resource-group aifoundry-apps-rg --query properties.configuration.ingress
 ```
 
 ### Getting Help

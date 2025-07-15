@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Set variables
-RESOURCE_GROUP="se-agent-factory-rg"
+RESOURCE_GROUP="aifoundry-apps-rg"
 LOCATION="eastus2"
-ENVIRONMENT_NAME="se-agent-factory-env"
+ENVIRONMENT_NAME="aifoundry-apps-env"
 REGISTRY_NAME="seagentfactoryacr$(date +%s)"
-BACKEND_APP_NAME="se-agent-factory-backend"
-FRONTEND_APP_NAME="se-agent-factory-frontend"
+BACKEND_APP_NAME="aifoundry-apps-backend"
+FRONTEND_APP_NAME="aifoundry-apps-frontend"
 
-echo "🚀 Deploying SE Agent Factory to Azure Container Apps"
+echo "🚀 Deploying AIFoundry.app  to Azure Container Apps"
 echo "=================================================="
 
 # Create resource group

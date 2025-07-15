@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Test deployment script for SE Agent Factory
-echo "🚀 Testing SE Agent Factory Deployment"
+# Test deployment script for AIFoundry.app 
+echo "🚀 Testing AIFoundry.app  Deployment"
 echo "======================================"
 
 # Function to check if URL is accessible
@@ -92,7 +92,7 @@ if [ -n "$FRONTEND_URL" ]; then
 fi
 
 echo ""
-echo "🎉 All tests passed! Your SE Agent Factory is ready to use."
+echo "🎉 All tests passed! Your AIFoundry.app  is ready to use."
 echo ""
 echo "📋 Next steps:"
 echo "1. Open your frontend URL in a browser"

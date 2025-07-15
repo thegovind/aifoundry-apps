@@ -3,7 +3,7 @@
 > **⚠️ Experimental - Work in Progress**  
 > This is an experimental platform currently under active development. You can test the latest version at [aifoundry.app](https://aifoundry.app)
 
-An agentic pplication that empowers solution engineers to customize multi-agent patterns and leverage the Azure AI Foundry Agent Service Catalog of Agent templates using SWE (Software Engineering) Agents.
+An agentic application that empowers solution engineers to customize multi-agent patterns and leverage the Azure AI Foundry Agent Service Catalog of Agent templates using SWE (Software Engineering) Agents.
 
 ## Overview
 

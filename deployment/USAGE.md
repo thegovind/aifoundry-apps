@@ -1,6 +1,6 @@
 # Deployment Scripts Usage Guide
 
-This directory contains all the deployment-related scripts and configurations for the SE Agent Factory application.
+This directory contains all the deployment-related scripts and configurations for the AIFoundry.app  application.
 
 ## Quick Reference
 
@@ -69,13 +69,13 @@ chmod +x test-deployment.sh
 chmod +x *.sh
 
 # View deployment logs
-az containerapp logs show --name se-agent-factory-backend --resource-group se-agent-factory-rg
+az containerapp logs show --name aifoundry-apps-backend --resource-group aifoundry-apps-rg
 
 # Check deployment status
-az containerapp show --name se-agent-factory-backend --resource-group se-agent-factory-rg --query properties.provisioningState
+az containerapp show --name aifoundry-apps-backend --resource-group aifoundry-apps-rg --query properties.provisioningState
 
 # Clean up resources
-az group delete --name se-agent-factory-rg --yes --no-wait
+az group delete --name aifoundry-apps-rg --yes --no-wait
 ```
 
 ## Need Help?

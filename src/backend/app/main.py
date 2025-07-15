@@ -13,7 +13,7 @@ from .mcp_client import create_github_mcp_client
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="SE Agent Factory API", description="API for AI App Templates")
+app = FastAPI(title="AIFoundry.app  API", description="API for AI App Templates")
 
 # Disable CORS. Do not remove this for full-stack development.
 app.add_middleware(

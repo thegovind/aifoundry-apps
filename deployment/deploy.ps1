@@ -1,12 +1,12 @@
 # Set variables
-$ResourceGroup = "se-agent-factory-rg"
+$ResourceGroup = "aifoundry-apps-rg"
 $Location = "eastus2"
-$EnvironmentName = "se-agent-factory-env"
+$EnvironmentName = "aifoundry-apps-env"
 $RegistryName = "seagentfactoryacr$(Get-Date -Format 'yyyyMMddHHmmss')"
-$BackendAppName = "se-agent-factory-backend"
-$FrontendAppName = "se-agent-factory-frontend"
+$BackendAppName = "aifoundry-apps-backend"
+$FrontendAppName = "aifoundry-apps-frontend"
 
-Write-Host "🚀 Deploying SE Agent Factory to Azure Container Apps" -ForegroundColor Green
+Write-Host "🚀 Deploying AIFoundry.app to Azure Container Apps" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Green
 
 # Create resource group
