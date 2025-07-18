@@ -800,3 +800,4 @@ tramp
 *.pid
 *.seed
 *.pid.lock
+infra/repomix-output.xml
