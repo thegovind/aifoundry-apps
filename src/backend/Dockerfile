@@ -4,23 +4,18 @@ FROM python:3.12-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and uv
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install uv
 
-# Install Poetry
-RUN pip install poetry
+# Copy project files
+COPY pyproject.toml README.md ./
 
-# Configure Poetry: Don't create virtual environment, install dependencies globally
-RUN poetry config virtualenvs.create false
-
-# Copy Poetry files
-COPY pyproject.toml poetry.lock* ./
-
-# Install dependencies
-RUN poetry install --only=main --no-root --no-interaction --no-ansi
+# Install dependencies using uv
+RUN uv pip install --system .
 
 # Copy application code
 COPY app/ ./app/

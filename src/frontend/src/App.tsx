@@ -4,8 +4,10 @@ import { Header } from './components/Header'
 import { LandingPage } from './components/LandingPage'
 import { PatternsPage } from './components/PatternsPage'
 import { TemplatesPage } from './components/TemplatesPage'
+import { SpecsPage } from './components/SpecsPage'
 import { PatternWorkbench } from './components/PatternWorkbench'
 import { TemplateWorkbench } from './components/TemplateWorkbench'
+import { SpecWorkbench } from './components/SpecWorkbench'
 import { Footer } from './components/Footer'
 
 export interface Template {
@@ -55,7 +57,7 @@ function App() {
   })
   const [loading, setLoading] = useState(true)
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  const apiUrl = import.meta.env.VITE_API_URL
 
   useEffect(() => {
     fetchData()
@@ -126,6 +128,8 @@ function App() {
             />
           } />
           <Route path="/template/:templateId" element={<TemplateWorkbench />} />
+          <Route path="/specs" element={<SpecsPage />} />
+          <Route path="/spec/:specId" element={<SpecWorkbench />} />
         </Routes>
       </main>
       <Footer />

@@ -58,7 +58,7 @@ export function TemplateWorkbench() {
   const [workflowMode, setWorkflowMode] = useState<'breakdown' | 'oneshot'>('oneshot')
   const [assignmentResponse, setAssignmentResponse] = useState<any>(null)
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  const apiUrl = import.meta.env.VITE_API_URL
 
   useEffect(() => {
     if (templateId) {

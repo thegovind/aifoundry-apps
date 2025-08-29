@@ -801,3 +801,5 @@ tramp
 *.seed
 *.pid.lock
 infra/repomix-output.xml
+
+deployment/

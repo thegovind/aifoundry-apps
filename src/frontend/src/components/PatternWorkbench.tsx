@@ -341,7 +341,7 @@ export function PatternWorkbench() {
   const [workflowMode, setWorkflowMode] = useState<'breakdown' | 'oneshot'>('breakdown')
   const [assignmentResponse, setAssignmentResponse] = useState<any>(null)
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  const apiUrl = import.meta.env.VITE_API_URL
 
   const mapPatternToCustomizationRequest = (): CustomizationRequest => {
     return {

@@ -52,15 +52,17 @@ AIfoundry.app provides a comprehensive platform for solution engineers to:
 ### Backend Setup
 ```bash
 cd src/backend
-poetry install
-poetry run fastapi dev app/main.py
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -e .
+uv run fastapi dev app/main.py
 ```
 
 ### Frontend Setup
 ```bash
 cd src/frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## Deployment
