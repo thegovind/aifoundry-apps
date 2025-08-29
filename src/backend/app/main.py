@@ -7,9 +7,15 @@ import os
 import re
 import logging
 import httpx
+from pathlib import Path
+from datetime import datetime
 from azure.ai.projects import AIProjectClient
 from azure.core.credentials import AzureKeyCredential
 from .mcp_client import create_github_mcp_client
+
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +24,10 @@ app = FastAPI(title="AIFoundry.app  API", description="API for AI App Templates"
 # Disable CORS. Do not remove this for full-stack development.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 class Template(BaseModel):
@@ -84,26 +90,351 @@ class SWEAgentRequest(BaseModel):
     template_id: str
     customization: CustomizationRequest
     task_id: Optional[str] = None
-    mode: str = "breakdown"  # or "oneshot"
+    mode: str = "breakdown"
 
-templates_data = [
-    {
-        "id": "browser-automation-agent",
-        "title": "Browser Automation Agent",
-        "description": "Kickstart browser automation scenarios with this Azure Playwright powered template",
-        "tags": ["Single-agent", "Beginner", "Playwright"],
-        "languages": ["Python", "JavaScript"],
-        "models": ["GPT-4", "GPT-4 Omni mini"],
-        "databases": ["Azure AI Search"],
-        "collection": "Microsoft",
-        "task": "Single-agent",
-        "github_url": "https://aka.ms/browser-automation",
-        "fork_count": 0,
-        "star_count": 0,
-        "is_featured": True,
-        "icon": "🌐",
-        "created_at": "2024-07-01"
-    },
+class Spec(BaseModel):
+    id: str
+    title: str
+    description: str
+    content: str
+    created_at: str
+    updated_at: str
+    tags: List[str]
+
+class SpecCreateRequest(BaseModel):
+    title: str
+    description: str
+    content: str
+    tags: List[str] = []
+
+CATALOG_PATH = Path(__file__).parent / "catalog.json"
+FEATURED_PATH = Path(__file__).parent / "featured.json"
+SPECS_PATH = Path(__file__).parent / "specs.json"
+
+def load_catalog() -> List[Template]:
+    items: List[Template] = []
+    raw: List[Dict] = []
+    if CATALOG_PATH.exists():
+        with CATALOG_PATH.open("r", encoding="utf-8") as f:
+            raw = json.load(f)
+    else:
+        logger.warning("catalog.json not found; returning empty catalog")
+    try:
+        with FEATURED_PATH.open("r", encoding="utf-8") as f:
+            featured_urls = set(json.load(f))
+    except FileNotFoundError:
+        featured_urls = set()
+    for obj in raw:
+        try:
+            is_featured = obj.get("github_url") in featured_urls or obj.get("is_featured", False)
+            obj["is_featured"] = bool(is_featured)
+            items.append(Template(**obj))
+        except Exception as e:
+            logger.warning(f"Skipping invalid template: {e}")
+    return items
+
+templates_data: List[Template] = load_catalog()
+template_by_id: Dict[str, Template] = {t.id: t for t in templates_data}
+
+def load_specs() -> List[Spec]:
+    specs: List[Spec] = []
+    if SPECS_PATH.exists():
+        with SPECS_PATH.open("r", encoding="utf-8") as f:
+            raw_specs = json.load(f)
+            for spec_data in raw_specs:
+                try:
+                    specs.append(Spec(**spec_data))
+                except Exception as e:
+                    logger.warning(f"Skipping invalid spec: {e}")
+    return specs
+
+def save_specs(specs: List[Spec]):
+    with SPECS_PATH.open("w", encoding="utf-8") as f:
+        json.dump([spec.model_dump() for spec in specs], f, indent=2)
+
+specs_data: List[Spec] = load_specs()
+spec_by_id: Dict[str, Spec] = {s.id: s for s in specs_data}
+
+@app.get("/api/specs")
+async def get_specs():
+    """Get all specifications"""
+    return specs_data
+
+@app.get("/api/specs/{spec_id}")
+async def get_spec(spec_id: str):
+    """Get a specific specification"""
+    spec = spec_by_id.get(spec_id)
+    if not spec:
+        raise HTTPException(status_code=404, detail="Specification not found")
+    return spec
+
+@app.post("/api/specs")
+async def create_spec(request: SpecCreateRequest):
+    """Create a new specification"""
+    import uuid
+    from datetime import datetime
+    
+    spec_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    
+    new_spec = Spec(
+        id=spec_id,
+        title=request.title,
+        description=request.description,
+        content=request.content,
+        created_at=now,
+        updated_at=now,
+        tags=request.tags
+    )
+    
+    specs_data.append(new_spec)
+    spec_by_id[spec_id] = new_spec
+    save_specs(specs_data)
+    
+    return new_spec
+
+@app.put("/api/specs/{spec_id}")
+async def update_spec(spec_id: str, request: SpecCreateRequest):
+    """Update an existing specification"""
+    spec = spec_by_id.get(spec_id)
+    if not spec:
+        raise HTTPException(status_code=404, detail="Specification not found")
+    
+    from datetime import datetime
+    now = datetime.now().isoformat()
+    
+    updated_spec = Spec(
+        id=spec_id,
+        title=request.title,
+        description=request.description,
+        content=request.content,
+        created_at=spec.created_at,
+        updated_at=now,
+        tags=request.tags
+    )
+    
+    for i, s in enumerate(specs_data):
+        if s.id == spec_id:
+            specs_data[i] = updated_spec
+            break
+    
+    spec_by_id[spec_id] = updated_spec
+    save_specs(specs_data)
+    
+    return updated_spec
+
+@app.post("/api/specs/{spec_id}/breakdown")
+async def generate_spec_task_breakdown(spec_id: str, request: CustomizationRequest):
+    """Generate task breakdown for a specification using Azure AI Agents Service"""
+    try:
+        spec = spec_by_id.get(spec_id)
+        if not spec:
+            raise HTTPException(status_code=404, detail="Specification not found")
+        
+        project_endpoint = os.getenv("AZURE_PROJECT_ENDPOINT")
+        api_key = os.getenv("AZURE_API_KEY")
+        model_name = os.getenv("AZURE_MODEL_NAME", "gpt-4.1-nano")
+        
+        if not project_endpoint or not api_key:
+            raise HTTPException(
+                status_code=500, 
+                detail="Azure AI configuration not found. Please set AZURE_PROJECT_ENDPOINT and AZURE_API_KEY environment variables."
+            )
+        
+        try:
+            with AIProjectClient(
+                endpoint=project_endpoint,
+                credential=AzureKeyCredential(api_key)
+            ) as project_client:
+                agents_client = project_client.agents
+                
+                agent = agents_client.create_agent(
+                    model=model_name,
+                    name="spec-breakdown-agent",
+                    instructions="""You are a task breakdown specialist for software development projects based on specifications. 
+                    Given a specification document and customization requirements, break down the work into specific, actionable tasks.
+                    
+                    For each task, provide:
+                    - A clear, specific title
+                    - Detailed description of what needs to be done
+                    - Estimated time to complete
+                    - Priority level (high, medium, low)
+                    - Status (always 'pending' for new tasks)
+                    
+                    Focus on practical implementation steps like:
+                    - Code implementation based on specification requirements
+                    - UI/UX development for specified features
+                    - Integration of specific requirements from the spec
+                    - Testing and validation of implemented features
+                    - Documentation updates
+                    
+                    Return your response as a JSON array of task objects with the following structure:
+                    [
+                      {
+                        "id": "task-1",
+                        "title": "Task title",
+                        "description": "Detailed description",
+                        "estimatedTime": "X-Y hours",
+                        "estimatedTokens": "X-Y tokens",
+                        "priority": "high|medium|low",
+                        "status": "pending"
+                      }
+                    ]"""
+                )
+                
+                thread = agents_client.threads.create()
+                
+                prompt = f"""
+                Please analyze the following specification and break it down into actionable development tasks:
+
+                **Specification Title:** {spec.title}
+                **Description:** {spec.description}
+                **Content:**
+                {spec.content}
+
+                **Implementation Context:**
+                - Customer: {request.company_name}
+                - Industry: {request.industry}
+                - Use Case: {request.use_case}
+                - Scenario: {request.customer_scenario}
+                - Additional Requirements: {request.additional_requirements}
+                - Brand Theme: {request.brand_theme}
+                - Primary Color: {request.primary_color}
+                - Use MCP Tools: {request.use_mcp_tools}
+                - Use A2A: {request.use_a2a}
+
+                Please provide a comprehensive task breakdown that covers all aspects of implementing this specification.
+                """
+                
+                message = agents_client.threads.messages.create(
+                    thread_id=thread.id,
+                    role="user",
+                    content=prompt
+                )
+                
+                run = agents_client.threads.runs.create(
+                    thread_id=thread.id,
+                    assistant_id=agent.id
+                )
+                
+                import time
+                while run.status in ["queued", "in_progress"]:
+                    time.sleep(1)
+                    run = agents_client.threads.runs.retrieve(
+                        thread_id=thread.id,
+                        run_id=run.id
+                    )
+                
+                if run.status == "completed":
+                    messages = agents_client.threads.messages.list(
+                        thread_id=thread.id,
+                        order="desc",
+                        limit=1
+                    )
+                    
+                    if messages.data:
+                        response_content = messages.data[0].content[0].text.value
+                        
+                        try:
+                            import re
+                            json_match = re.search(r'\[.*\]', response_content, re.DOTALL)
+                            if json_match:
+                                tasks_json = json_match.group()
+                                tasks = json.loads(tasks_json)
+                                return tasks
+                            else:
+                                logger.warning("No JSON array found in response")
+                                return []
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Failed to parse JSON response: {e}")
+                            return []
+                else:
+                    logger.error(f"Run failed with status: {run.status}")
+                    return []
+                    
+        except Exception as e:
+            logger.error(f"Azure AI error: {e}")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error in generate_spec_task_breakdown: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/specs/{spec_id}/assign")
+async def assign_spec_to_swe_agent(spec_id: str, request: SWEAgentRequest):
+    """Assign specification implementation to SWE agent"""
+    try:
+        spec = spec_by_id.get(spec_id)
+        if not spec:
+            raise HTTPException(status_code=404, detail="Specification not found")
+        
+        if request.agent_id == "devin":
+            devin_payload = {
+                "prompt": f"""
+                Implement the {spec.title} specification for the following scenario:
+                
+                Customer: {request.customization.company_name}
+                Industry: {request.customization.industry}
+                Use Case: {request.customization.use_case}
+                Scenario: {request.customization.customer_scenario}
+                Brand Theme: {request.customization.brand_theme}
+                Primary Color: {request.customization.primary_color}
+                Additional Requirements: {request.customization.additional_requirements}
+                Use MCP Tools: {request.customization.use_mcp_tools}
+                Use A2A: {request.customization.use_a2a}
+                
+                Specification Content:
+                {spec.content}
+                
+                Mode: {request.mode}
+                
+                {"If MCP Tools is enabled, leverage Model Context Protocol capabilities in your implementation." if request.customization.use_mcp_tools else ""}
+                {"If A2A is enabled, utilize Agent-to-Agent communication patterns in your implementation." if request.customization.use_a2a else ""}
+                """.strip(),
+                "repo_url": "https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview"
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {request.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            async with httpx.AsyncClient() as client:
+                devin_api_url = os.getenv("DEVIN_API_BASE_URL", "https://api.devin.ai")
+                response = await client.post(
+                    f"{devin_api_url}/sessions",
+                    json=devin_payload,
+                    headers=headers,
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return {
+                        "status": "success",
+                        "message": f"Successfully assigned specification implementation to Devin",
+                        "session_id": result.get("session_id"),
+                        "session_url": result.get("session_url"),
+                        "agent": "devin",
+                        "spec_title": spec.title
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": f"Failed to assign to Devin: {response.text}",
+                        "agent": "devin"
+                    }
+        
+        return {
+            "status": "error",
+            "message": f"Agent {request.agent_id} not supported for specifications",
+            "agent": request.agent_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in assign_spec_to_swe_agent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+legacy_templates_removed = """
     {
         "id": "ai-red-teaming-agent",
         "title": "AI Red Teaming Agent",
@@ -482,6 +813,7 @@ templates_data = [
     }
 ]
 
+"""
 patterns_data = [
     {
         "id": "prompt-chaining",
@@ -567,58 +899,57 @@ async def get_templates(
     database: Optional[str] = Query(None, description="Filter by database"),
     sort: Optional[str] = Query("Most Popular", description="Sort order")
 ):
-    """Get all templates with optional filtering and search"""
-    filtered_templates = templates_data.copy()
-    
+    filtered = list(templates_data)
+
     if search:
-        search_lower = search.lower()
-        filtered_templates = [
-            t for t in filtered_templates 
-            if search_lower in t["title"].lower() or search_lower in t["description"].lower()
-        ]
-    
+        s = search.lower()
+        filtered = [t for t in filtered if s in t.title.lower() or s in t.description.lower()]
+
     if task:
-        filtered_templates = [t for t in filtered_templates if task in t["tags"]]
-    
+        filtered = [t for t in filtered if task == t.task or task in t.tags]
+
     if language:
-        filtered_templates = [t for t in filtered_templates if language in t["languages"]]
-    
+        filtered = [t for t in filtered if language in t.languages]
+
     if collection:
-        filtered_templates = [t for t in filtered_templates if t["collection"] == collection]
-    
+        filtered = [t for t in filtered if t.collection == collection]
+
     if model:
-        filtered_templates = [t for t in filtered_templates if model in t["models"]]
-    
+        filtered = [t for t in filtered if model in t.models]
+
     if database:
-        filtered_templates = [t for t in filtered_templates if database in t["databases"]]
-    
+        filtered = [t for t in filtered if database in t.databases]
+
     if sort == "Most Popular":
-        filtered_templates.sort(key=lambda x: x.get("star_count", 0), reverse=True)
+        filtered.sort(key=lambda t: t.star_count, reverse=True)
     elif sort == "Most Recent":
-        filtered_templates.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        filtered.sort(key=lambda t: t.created_at or "", reverse=True)
     elif sort == "Most Forked":
-        filtered_templates.sort(key=lambda x: x.get("fork_count", 0), reverse=True)
-    
-    return [Template(**template) for template in filtered_templates]
+        filtered.sort(key=lambda t: t.fork_count, reverse=True)
+
+    return [t.model_dump() for t in filtered]
 
 @app.get("/api/templates/featured", response_model=List[Template])
 async def get_featured_templates():
-    """Get featured templates"""
-    featured = [t for t in templates_data if t["is_featured"]]
-    return [Template(**template) for template in featured]
+    featured = [t for t in templates_data if t.is_featured]
+    return [t.model_dump() for t in featured]
 
 @app.get("/api/templates/{template_id}", response_model=Template)
 async def get_template(template_id: str):
-    """Get specific template details"""
-    template = next((t for t in templates_data if t["id"] == template_id), None)
-    if not template:
+    t = template_by_id.get(template_id)
+    if not t:
         raise HTTPException(status_code=404, detail="Template not found")
-    return Template(**template)
+    return t.model_dump()
 
 @app.get("/api/filters", response_model=FilterOptions)
 async def get_filters():
-    """Get all available filter options"""
-    return FilterOptions(**filter_options_data)
+    tasks = sorted({t.task for t in templates_data if t.task})
+    languages = sorted({lang for t in templates_data for lang in t.languages})
+    collections = sorted({t.collection for t in templates_data if t.collection})
+    models = sorted({m for t in templates_data for m in t.models})
+    databases = sorted({d for t in templates_data for d in t.databases})
+    patterns = sorted({t.pattern for t in templates_data if t.pattern})
+    return FilterOptions(tasks=tasks, languages=languages, collections=collections, models=models, databases=databases, patterns=patterns).model_dump()
 
 @app.get("/api/learning-resources", response_model=List[LearningResource])
 async def get_learning_resources():
@@ -640,9 +971,15 @@ async def generate_task_breakdown(template_id: str, request: CustomizationReques
             if not pattern:
                 raise HTTPException(status_code=404, detail="Template or pattern not found")
         
-        project_endpoint = "https://citigkpoc-resource.services.ai.azure.com/api/projects/citigkpoc"
-        api_key = "jSgYcRBVUa11q7uE76JvAeWaFfCJZRDQjo3DQU1IzOTsRp9m5xiaJQQJ99BFACHYHv6XJ3w3AAAAACOGiAAV"
-        model_name = "gpt-4.1-nano"
+        project_endpoint = os.getenv("AZURE_PROJECT_ENDPOINT")
+        api_key = os.getenv("AZURE_API_KEY")
+        model_name = os.getenv("AZURE_MODEL_NAME", "gpt-4.1-nano")
+        
+        if not project_endpoint or not api_key:
+            raise HTTPException(
+                status_code=500, 
+                detail="Azure AI configuration not found. Please set AZURE_PROJECT_ENDPOINT and AZURE_API_KEY environment variables."
+            )
         
         try:
             with AIProjectClient(
@@ -1037,7 +1374,7 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
                 {"If MCP Tools is enabled, leverage Model Context Protocol capabilities in your implementation." if request.customization.use_mcp_tools else ""}
                 {"If A2A is enabled, utilize Agent-to-Agent communication patterns in your implementation." if request.customization.use_a2a else ""}
                 """.strip(),
-                "repo_url": item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')
+                "repo_url": item['github_url']
             }
             
             headers = {
@@ -1046,8 +1383,9 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
             }
             
             async with httpx.AsyncClient() as client:
+                devin_api_url = os.getenv("DEVIN_API_BASE_URL", "https://api.devin.ai")
                 response = await client.post(
-                    "https://api.devin.ai/v1/sessions",
+                    f"{devin_api_url}/v1/sessions",
                     json=devin_payload,
                     headers=headers,
                     timeout=30.0

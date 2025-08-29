@@ -10,7 +10,7 @@ interface TemplateCardProps {
 
 export function TemplateCard({ template }: TemplateCardProps) {
   return (
-    <article className="bg-figma-dark-gray border border-figma-medium-gray rounded-lg overflow-hidden hover:shadow-xl hover:shadow-figma-medium-gray/20 transition-all duration-200 group flex flex-col h-full">
+    <article className="bg-figma-medium-gray border border-figma-light-gray rounded-lg overflow-hidden hover:border-figma-text-secondary transition-colors group flex flex-col h-full">
       <div className="h-16 bg-gradient-to-br from-figma-medium-gray to-figma-light-gray flex items-center justify-center">
         <span className="text-2xl">{template.icon}</span>
       </div>
@@ -18,7 +18,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
       <div className="p-4 flex flex-col flex-1">
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="outline" className="text-xs font-medium px-1.5 py-0.5 bg-figma-medium-gray text-figma-text-secondary border-figma-light-gray">
-            Experiment
+            {template.task || 'Template'}
           </Badge>
         </div>
         

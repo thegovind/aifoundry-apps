@@ -55,7 +55,7 @@ export function PatternCard({ pattern }: PatternCardProps) {
   }, [pattern.id, pattern.mermaidCode])
 
   return (
-    <div className="bg-figma-medium-gray border border-figma-light-gray rounded-lg p-6 hover:shadow-lg hover:shadow-gray-500/20 transition-all duration-200 hover:border-figma-light-gray flex flex-col h-full">
+    <div className="bg-figma-medium-gray border border-figma-light-gray rounded-lg p-6 hover:border-figma-text-secondary transition-colors flex flex-col h-full">
       <div className="mb-4">
         <h3 className="text-xl font-semibold text-figma-text-primary mb-2">{pattern.title}</h3>
         <p className="text-figma-text-secondary text-sm leading-relaxed">{pattern.description}</p>

@@ -93,7 +93,7 @@ export function SWEAgentSelection({
   const isFormValid = customization[validationField] && apiKey
 
   return (
-    <Card className="bg-figma-medium-gray border-figma-light-gray">
+    <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors">
       <CardHeader>
         <CardTitle className="text-figma-text-primary">SWE Agent Selection</CardTitle>
         <CardDescription className="text-figma-text-secondary">
@@ -107,8 +107,8 @@ export function SWEAgentSelection({
               key={agent.id}
               className={`p-3 rounded border cursor-pointer transition-colors ${
                 selectedAgent === agent.id
-                  ? 'border-figma-light-gray bg-figma-dark-gray'
-                  : 'border-figma-light-gray hover:border-figma-light-gray'
+                  ? 'border-figma-text-secondary bg-figma-dark-gray'
+                  : 'border-figma-light-gray hover:border-figma-text-secondary'
               }`}
               onClick={() => setSelectedAgent(agent.id)}
             >

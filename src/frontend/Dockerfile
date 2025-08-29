@@ -16,7 +16,14 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Build the application
+# Copy .env file (even though it's in .gitignore)
+COPY .env .env
+
+# Accept build argument for API URL
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
+# Build the application with environment variable
 RUN pnpm run build
 
 # Production stage with nginx
