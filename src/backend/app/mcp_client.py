@@ -69,6 +69,9 @@ class GitHubMCPClient:
             elif self.auth_method == "oauth":
                 logger.warning("OAuth authentication not yet implemented")
                 return False
+            else:
+                logger.error(f"Unsupported authentication method: {self.auth_method}")
+                return False
                 
         except Exception as e:
             logger.error(f"Error connecting to GitHub MCP server: {e}")
@@ -107,6 +110,9 @@ class GitHubMCPClient:
                     else:
                         logger.error(f"Failed to list tools: HTTP {response.status_code} - {response.text}")
                         return []
+            else:
+                logger.warning("OAuth authentication not yet implemented for list_tools")
+                return []
         except Exception as e:
             logger.error(f"Error listing tools: {e}")
             return []
@@ -178,6 +184,10 @@ class GitHubMCPClient:
                         error_msg = f"Failed to create PR: HTTP {response.status_code}"
                         logger.error(error_msg)
                         return {"error": error_msg, "status_code": response.status_code}
+            else:
+                error_msg = "OAuth authentication not yet implemented for create_pull_request_with_copilot"
+                logger.warning(error_msg)
+                return {"error": error_msg}
             
         except Exception as e:
             error_msg = f"Error creating pull request with Copilot: {e}"
