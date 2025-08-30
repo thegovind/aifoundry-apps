@@ -47,7 +47,7 @@ interface TaskBreakdown {
 }
 
 export function SpecWorkbench() {
-  const { accessToken, isAuthenticated } = useAuth()
+  const { accessToken } = useAuth()
   const { specId } = useParams()
   const navigate = useNavigate()
   const isNewSpec = specId === 'new'

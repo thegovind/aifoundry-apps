@@ -12,19 +12,37 @@ class GitHubAppClient:
     def __init__(self):
         self.app_id = os.getenv("GITHUB_APP_ID")
         self.client_id = os.getenv("GITHUB_CLIENT_ID")
-        self.private_key_path = os.getenv("GITHUB_PRIVATE_KEY_PATH")
-        
+        # GITHUB_PRIVATE_KEY_PATH can be either a file path or the PEM content
+        private_key_input = os.getenv("GITHUB_PRIVATE_KEY_PATH")
+        self.private_key: Optional[str] = None
+
         if not self.app_id:
             raise ValueError("GITHUB_APP_ID environment variable is required")
         if not self.client_id:
             raise ValueError("GITHUB_CLIENT_ID environment variable is required")
-        if not self.private_key_path:
+        if not private_key_input:
             raise ValueError("GITHUB_PRIVATE_KEY_PATH environment variable is required")
+
+        # Resolve private key from file path or direct PEM
+        try:
+            if os.path.exists(private_key_input):
+                with open(private_key_input, 'r') as key_file:
+                    self.private_key = key_file.read()
+            else:
+                # If it looks like PEM content, use it directly
+                if private_key_input.strip().startswith("-----BEGIN"):
+                    self.private_key = private_key_input
+                else:
+                    # Last attempt: try opening as path anyway to surface clear error
+                    with open(private_key_input, 'r') as key_file:
+                        self.private_key = key_file.read()
+        except Exception as e:
+            raise ValueError(f"Failed to load GitHub private key from GITHUB_PRIVATE_KEY_PATH: {e}")
         
     def generate_jwt_token(self) -> str:
         """Generate JWT token for GitHub App authentication"""
-        with open(self.private_key_path, 'r') as key_file:
-            private_key = key_file.read()
+        if not self.private_key:
+            raise ValueError("GitHub private key not loaded")
         
         now = int(time.time())
         payload = {
@@ -32,8 +50,7 @@ class GitHubAppClient:
             'exp': now + (10 * 60),
             'iss': self.app_id
         }
-        
-        return jwt.encode(payload, private_key, algorithm='RS256')
+        return jwt.encode(payload, self.private_key, algorithm='RS256')
     
     async def get_installation_token(self, installation_id: str) -> str:
         """Get installation access token for a specific installation"""

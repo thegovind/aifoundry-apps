@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from '@/hooks/use-toast'
 
 interface User {
   login: string
@@ -12,6 +14,7 @@ interface AuthContextType {
   login: () => void
   logout: () => void
   isAuthenticated: boolean
+  setAuth: (token: string, user: User) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -19,6 +22,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const storedToken = localStorage.getItem('github_access_token')
@@ -45,6 +49,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAccessToken(null)
     localStorage.removeItem('github_access_token')
     localStorage.removeItem('github_user')
+    // Inform user and route back home
+    toast({ title: 'Signed out', description: 'You have been signed out.' })
+    navigate('/')
+  }
+
+  // Allow components (e.g., OAuth callback) to finalize login and update state immediately
+  const setAuth = (token: string, user: User) => {
+    setAccessToken(token)
+    setUser(user)
+    // persist for reloads
+    localStorage.setItem('github_access_token', token)
+    localStorage.setItem('github_user', JSON.stringify(user))
   }
 
   const value = {
@@ -52,7 +68,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     accessToken,
     login,
     logout,
-    isAuthenticated: !!user && !!accessToken
+  isAuthenticated: !!user && !!accessToken,
+  setAuth
   }
 
   return (
