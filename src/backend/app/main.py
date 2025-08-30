@@ -1,18 +1,19 @@
 from fastapi import FastAPI, Query, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 import json
 import os
 import re
 import logging
 import httpx
+import asyncio
 from pathlib import Path
 from datetime import datetime
 from azure.ai.projects import AIProjectClient
 from azure.core.credentials import AzureKeyCredential
 from .mcp_client import create_github_mcp_client
-from .github_app import GitHubAppClient
+from .github_service import GitHubService
 from .github_app import GitHubAppClient
 
 # Load environment variables
@@ -1507,6 +1508,70 @@ async def generate_task_breakdown(template_id: str, request: CustomizationReques
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating task breakdown: {str(e)}")
 
+async def fork_template_repo(
+    item: Any,
+    item_type: str,
+    customization: Any,
+    gh_token: str
+) -> Dict[str, Any]:
+    """Fork template repository and create agents.md file"""
+    repo_url = getattr(item, 'github_url', item.get('github_url', '') if isinstance(item, dict) else '')
+    match = re.search(r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$', repo_url)
+    if not match:
+        raise HTTPException(status_code=400, detail=f"Could not extract owner/repo from URL: {repo_url}")
+    src_owner, src_repo = match.groups()
+
+    title = getattr(item, 'title', item.get('title', 'template') if isinstance(item, dict) else 'template')
+    safe_name = re.sub(r'[^a-zA-Z0-9-]', '-', title.lower())
+    company = customization.company_name or "customer"
+    company_safe = re.sub(r'[^a-zA-Z0-9-]', '-', company.lower()).strip('-') or 'customer'
+    target_repo = f"{safe_name}-{company_safe}"
+
+    async with httpx.AsyncClient() as client:
+        user_resp = await client.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"token {gh_token}"}
+        )
+        if user_resp.status_code != 200:
+            raise HTTPException(status_code=user_resp.status_code, detail="Failed to identify GitHub user")
+        user_login = user_resp.json().get("login")
+
+        fork_resp = await client.post(
+            f"https://api.github.com/repos/{src_owner}/{src_repo}/forks",
+            headers={
+                "Authorization": f"token {gh_token}",
+                "Accept": "application/vnd.github.v3+json",
+            },
+            json={"name": target_repo}
+        )
+        if fork_resp.status_code not in (201, 202):
+            raise HTTPException(status_code=fork_resp.status_code, detail=f"Failed to fork repository: {fork_resp.text}")
+
+    await asyncio.sleep(2)
+
+    github_service = GitHubService(github_token=gh_token)
+    agents_content = github_service.generate_agents_md_content(
+        content_type=item_type,
+        item=item.__dict__ if hasattr(item, '__dict__') else item,
+        customization=customization.__dict__
+    )
+    file_result = github_service.create_file(
+        repo_name=f"{user_login}/{target_repo}",
+        file_path="agents.md",
+        content=agents_content,
+        commit_message="Add agents.md with customization details"
+    )
+    if not file_result.get("success"):
+        logger.warning(f"Failed to create agents.md: {file_result.get('error')}")
+
+    return {
+        "user_login": user_login,
+        "target_repo": target_repo,
+        "fork_repo_url": f"https://github.com/{user_login}/{target_repo}",
+        "src_owner": src_owner,
+        "src_repo": src_repo
+    }
+
 @app.post("/api/templates/{template_id}/assign")
 async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest, authorization: Optional[str] = Header(None)):
     """Assign customization task to SWE agent"""
@@ -1524,74 +1589,17 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest, author
                 raise HTTPException(status_code=404, detail="Template or pattern not found")
         
         if request.agent_id == "devin":
-            # Use template or pattern data
             item = template if template else pattern
             item_type = "template" if template else "pattern"
             
-            # Require GitHub auth to fork/copy the template repository into user's account
             if not authorization or not authorization.startswith("Bearer "):
                 raise HTTPException(status_code=401, detail="GitHub authentication required to deploy to your repository")
 
             gh_token = authorization.split(" ")[1]
 
-            # Extract owner/repo from the source template URL
-            repo_url = getattr(item, 'github_url', item.get('github_url', '') if isinstance(item, dict) else '')
-            match = re.search(r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$', repo_url)
-            if not match:
-                raise HTTPException(status_code=400, detail=f"Could not extract owner/repo from URL: {repo_url}")
-            src_owner, src_repo = match.groups()
-
-            # Derive target repo name based on title + company
+            fork_result = await fork_template_repo(item, item_type, request.customization, gh_token)
+            
             title = getattr(item, 'title', item.get('title', 'template') if isinstance(item, dict) else 'template')
-            safe_name = re.sub(r'[^a-zA-Z0-9-]', '-', title.lower())
-            company = request.customization.company_name or "customer"
-            company_safe = re.sub(r'[^a-zA-Z0-9-]', '-', company.lower()).strip('-') or 'customer'
-            target_repo = f"{safe_name}-{company_safe}"
-
-            async with httpx.AsyncClient() as client:
-                # Identify the authenticated user
-                user_resp = await client.get(
-                    "https://api.github.com/user",
-                    headers={"Authorization": f"token {gh_token}"}
-                )
-                if user_resp.status_code != 200:
-                    raise HTTPException(status_code=user_resp.status_code, detail="Failed to identify GitHub user")
-                user_login = user_resp.json().get("login")
-
-                # Fork the repo into user's account (optionally using a new name)
-                fork_resp = await client.post(
-                    f"https://api.github.com/repos/{src_owner}/{src_repo}/forks",
-                    headers={
-                        "Authorization": f"token {gh_token}",
-                        "Accept": "application/vnd.github.v3+json",
-                    },
-                    json={"name": target_repo}
-                )
-                if fork_resp.status_code not in (201, 202):
-                    raise HTTPException(status_code=fork_resp.status_code, detail=f"Failed to fork repository: {fork_resp.text}")
-
-            # Wait briefly for fork to be ready, then create agents.md using PyGithub service
-            import asyncio
-            await asyncio.sleep(2)
-
-            github_service = GitHubService(github_token=gh_token)
-            agents_content = github_service.generate_agents_md_content(
-                content_type=item_type,
-                item=item.__dict__ if hasattr(item, '__dict__') else item,
-                customization=request.customization.__dict__
-            )
-            file_result = github_service.create_file(
-                repo_name=f"{user_login}/{target_repo}",
-                file_path="agents.md",
-                content=agents_content,
-                commit_message="Add agents.md with customization details"
-            )
-            if not file_result.get("success"):
-                # Don't fail the whole flow; include warning but proceed to Devin
-                logger.warning(f"Failed to create agents.md: {file_result.get('error')}")
-
-            # Prepare Devin session prompt
-            fork_repo_url = f"https://github.com/{user_login}/{target_repo}"
             prompt = f"""
 You are Devin. Implement the following customization for the {title} {item_type}.
 
@@ -1608,7 +1616,7 @@ Additional Requirements:
 {request.customization.additional_requirements}
 
 Repository to work in (forked from template):
-{fork_repo_url}
+{fork_result['fork_repo_url']}
 
 Tasks:
 - Review repository and agents.md for context.
@@ -1635,26 +1643,70 @@ Tasks:
                     "agent": "devin",
                     "session_id": devin_response.get("session_id"),
                     "session_url": devin_response.get("session_url"),
-                    "repository_url": fork_repo_url,
+                    "repository_url": fork_result['fork_repo_url'],
                     "message": "Forked template, created agents.md, and started Devin session"
                 }
             else:
                 raise HTTPException(status_code=response.status_code, detail=f"Devin API error: {response.text}")
                     
         elif request.agent_id == "github-copilot":
-            # Use template or pattern data
             item = template if template else pattern
             item_type = "template" if template else "pattern"
             
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(status_code=401, detail="GitHub authentication required to deploy to your repository")
+
+            gh_token = authorization.split(" ")[1]
+            
+            fork_result = await fork_template_repo(item, item_type, request.customization, gh_token)
+            
+            issue_title = f"Implement {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} customizations for {request.customization.company_name}"
+            issue_body = f"""
+## Customization Requirements
+
+**Customer:** {request.customization.company_name}
+**Industry:** {request.customization.industry}
+**Use Case:** {request.customization.use_case}
+**Brand Theme:** {request.customization.brand_theme}
+**Primary Color:** {request.customization.primary_color}
+
+{request.customization.customer_scenario}
+
+## Additional Requirements
+{request.customization.additional_requirements}
+
+- **Use MCP Tools:** {request.customization.use_mcp_tools}
+- **Use A2A:** {request.customization.use_a2a}
+- **Mode:** {request.mode}
+
+Please implement these customizations following best practices and maintaining code quality.
+
+/cc @github-copilot
+            """.strip()
+            
+            async with httpx.AsyncClient() as client:
+                issue_resp = await client.post(
+                    f"https://api.github.com/repos/{fork_result['user_login']}/{fork_result['target_repo']}/issues",
+                    headers={
+                        "Authorization": f"token {gh_token}",
+                        "Accept": "application/vnd.github.v3+json",
+                    },
+                    json={
+                        "title": issue_title,
+                        "body": issue_body,
+                        "assignees": ["github-copilot"]
+                    }
+                )
+                
+                if issue_resp.status_code != 201:
+                    logger.warning(f"Failed to create GitHub issue: {issue_resp.status_code} - {issue_resp.text}")
+                    issue_url = None
+                else:
+                    issue_data = issue_resp.json()
+                    issue_url = issue_data.get("html_url")
+            
             if request.customization.use_mcp_tools:
                 try:
-                    repo_url = getattr(item, 'github_url', item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview') if isinstance(item, dict) else 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')
-                    match = re.search(r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$', repo_url)
-                    if not match:
-                        raise ValueError(f"Could not extract owner/repo from URL: {repo_url}")
-                    
-                    owner, repo = match.groups()
-                    
                     problem_statement = f"""
 Implement customizations for {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} {item_type}:
 
@@ -1667,7 +1719,7 @@ Primary Color: {request.customization.primary_color}
 Customer Scenario: {request.customization.customer_scenario}
 Additional Requirements: {request.customization.additional_requirements}
 
-Repository: {repo_url}
+Repository: {fork_result['fork_repo_url']}
 Mode: {request.mode}
 
 Please implement these customizations following best practices and maintaining code quality.
@@ -1675,66 +1727,64 @@ Please implement these customizations following best practices and maintaining c
                     
                     pr_title = f"Implement {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} {item_type} customizations for {request.customization.company_name}"
                     
-                    auth_method = "oauth"
-                    
                     mcp_client = create_github_mcp_client(
-                        auth_method=auth_method,
-                        github_token=request.api_key
+                        auth_method="oauth",
+                        github_token=gh_token
                     )
                     result = await mcp_client.create_pull_request_with_copilot(
-                        owner=owner,
-                        repo=repo,
+                        owner=fork_result['user_login'],
+                        repo=fork_result['target_repo'],
                         problem_statement=problem_statement,
                         title=pr_title,
                         base_ref="main"
                     )
                     
-                    if "error" in result:
-                        raise Exception(result["error"])
-                    
-                    if "error" not in result and not result.get("isError", False):
-                        logger.info(f"Successfully created GitHub Copilot PR for {owner}/{repo}: {result}")
-                        return {
-                            "status": "success",
-                            "agent": "github-copilot",
-                            "message": f"GitHub Copilot is working on your request. Check the repository for updates.",
-                            "result": result
-                        }
-                    else:
-                        error_msg = result.get("content", [{}])[0].get("text", "Unknown error") if result.get("content") else str(result)
-                        logger.warning(f"GitHub Copilot MCP call returned error: {error_msg}")
-                        return {
-                            "status": "partial_success",
-                            "agent": "github-copilot",
-                            "message": f"GitHub Copilot MCP integration is working, but encountered an authentication issue. Please ensure your GitHub PAT has the required permissions (repo, workflow scopes) and that GitHub Copilot is enabled for this repository. Error: {error_msg}",
-                            "result": result
-                        }
+                    return {
+                        "status": "success",
+                        "agent": "github-copilot",
+                        "repository_url": fork_result['fork_repo_url'],
+                        "issue_url": issue_url,
+                        "message": f"Forked template, created GitHub issue, and assigned to GitHub Copilot coding agent",
+                        "mcp_result": result
+                    }
                     
                 except Exception as e:
                     logger.error(f"MCP GitHub Copilot error: {e}")
-                    logger.info("Falling back to placeholder GitHub Copilot implementation")
                     return {
                         "status": "success",
-                        "agent": "github-copilot", 
-                        "message": f"Task assigned to GitHub Copilot (MCP failed, using placeholder implementation). Error: {str(e)}"
+                        "agent": "github-copilot",
+                        "repository_url": fork_result['fork_repo_url'],
+                        "issue_url": issue_url,
+                        "message": f"Forked template and created GitHub issue. MCP integration failed: {str(e)}"
                     }
             else:
                 return {
                     "status": "success",
-                    "agent": "github-copilot", 
-                    "message": "Task assigned to GitHub Copilot (MCP Tools not enabled - using placeholder implementation)"
+                    "agent": "github-copilot",
+                    "repository_url": fork_result['fork_repo_url'],
+                    "issue_url": issue_url,
+                    "message": "Forked template and created GitHub issue for GitHub Copilot coding agent"
                 }
             
         elif request.agent_id == "replit":
+            item = template if template else pattern
+            item_type = "template" if template else "pattern"
+            
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(status_code=401, detail="GitHub authentication required to deploy to your repository")
+
+            gh_token = authorization.split(" ")[1]
+            
+            fork_result = await fork_template_repo(item, item_type, request.customization, gh_token)
+            
             return {
                 "status": "success",
                 "agent": "replit",
-                "message": "Task assigned to Replit Agent (placeholder implementation)"
+                "repository_url": fork_result['fork_repo_url'],
+                "message": "Forked template and created agents.md for Replit Agent"
             }
             
         elif request.agent_id == "codex-cli":
-            from .github_service import GitHubService
-            
             try:
                 item = template if template else pattern
                 item_type = "template" if template else "pattern"
@@ -1750,37 +1800,14 @@ Please implement these customizations following best practices and maintaining c
                 if not item:
                     raise HTTPException(status_code=404, detail="No item found for processing")
                 
-                github_service = GitHubService()
+                if not authorization or not authorization.startswith("Bearer "):
+                    raise HTTPException(status_code=401, detail="GitHub authentication required to deploy to your repository")
+
+                gh_token = authorization.split(" ")[1]
                 
-                title = getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')
+                fork_result = await fork_template_repo(item, item_type, request.customization, gh_token)
                 
-                safe_name = re.sub(r'[^a-zA-Z0-9-]', '-', title.lower())
-                repo_name = f"{safe_name}-{request.customization.company_name.lower().replace(' ', '-')}"
-                
-                repo_result = github_service.create_repository(
-                    repo_name=repo_name,
-                    description=f"Azure OpenAI Codex implementation for {title}",
-                    private=False
-                )
-                
-                if not repo_result["success"]:
-                    raise Exception(f"Failed to create repository: {repo_result['error']}")
-                
-                agents_content = github_service.generate_agents_md_content(
-                    content_type=item_type,
-                    item=item.__dict__ if hasattr(item, '__dict__') else item,
-                    customization=request.customization.__dict__
-                )
-                
-                file_result = github_service.create_file(
-                    repo_name=repo_result["repo_name"],
-                    file_path="agents.md",
-                    content=agents_content,
-                    commit_message="Add agents.md with project specification"
-                )
-                
-                if not file_result["success"]:
-                    logger.warning(f"Failed to create agents.md: {file_result['error']}")
+                github_service = GitHubService(github_token=gh_token)
                 
                 workflow_content = github_service.generate_github_actions_workflow(
                     agent_type="codex-cli",
@@ -1788,7 +1815,7 @@ Please implement these customizations following best practices and maintaining c
                 )
                 
                 workflow_result = github_service.create_file(
-                    repo_name=repo_result["repo_name"],
+                    repo_name=f"{fork_result['user_login']}/{fork_result['target_repo']}",
                     file_path=".github/workflows/codex-automation.yml",
                     content=workflow_content,
                     commit_message="Add GitHub Actions workflow for Azure OpenAI Codex automation"
@@ -1800,9 +1827,9 @@ Please implement these customizations following best practices and maintaining c
                 return {
                     "status": "success",
                     "agent": "codex-cli",
-                    "message": f"Repository created successfully with Azure OpenAI Codex automation setup",
-                    "repository_url": repo_result["repo_url"],
-                    "repository_name": repo_result["repo_name"]
+                    "message": f"Forked template and setup Azure OpenAI Codex automation",
+                    "repository_url": fork_result['fork_repo_url'],
+                    "repository_name": f"{fork_result['user_login']}/{fork_result['target_repo']}"
                 }
                 
             except Exception as e:
@@ -1810,7 +1837,7 @@ Please implement these customizations following best practices and maintaining c
                 return {
                     "status": "error",
                     "agent": "codex-cli",
-                    "message": f"Failed to create repository and setup Codex automation: {str(e)}"
+                    "message": f"Failed to fork repository and setup Codex automation: {str(e)}"
                 }
             
         else:
