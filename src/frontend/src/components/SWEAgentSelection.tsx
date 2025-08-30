@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { ExternalLink, Loader2 } from 'lucide-react'
-import { SiOpenai, SiReplit } from 'react-icons/si'
+import { Loader2 } from 'lucide-react'
+import { SiOpenai, SiReplit, SiGithub } from 'react-icons/si'
+import { useAuth } from '../contexts/AuthContext'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
@@ -12,7 +13,7 @@ interface SWEAgent {
   description: string
   icon: string | React.ReactNode
   requiresApiKey: boolean
-  configType?: 'api-key' | 'pat' | 'azure-openai' | 'azure-marketplace'
+  configType?: 'api-key' | 'pat' | 'azure-openai' | 'azure-marketplace' | 'oauth'
   instructions?: string
   comingSoon?: boolean
 }
@@ -43,10 +44,10 @@ const sweAgents: SWEAgent[] = [
     id: 'github-copilot',
     name: 'GitHub Copilot Coding Agent',
     description: 'AI pair programmer integrated with GitHub via MCP',
-    icon: <ExternalLink className="w-6 h-6 text-white" />,
+    icon: <SiGithub className="w-6 h-6 text-white" />,
     requiresApiKey: true,
-    configType: 'pat',
-    instructions: 'Generate a Personal Access Token (PAT) from GitHub Settings > Developer settings > Personal access tokens. The agent is invoked via Model Context Protocol (MCP) for seamless integration.'
+    configType: 'oauth',
+    instructions: 'Sign in with GitHub to use GitHub Copilot. The agent is invoked via Model Context Protocol (MCP) for seamless integration.'
   },
   {
     id: 'codex-cli',
@@ -89,8 +90,11 @@ export function SWEAgentSelection({
   validationField
 }: SWEAgentSelectionProps) {
   const [endpoint, setEndpoint] = useState<string>('')
+  const { isAuthenticated, login, user } = useAuth()
 
-  const isFormValid = customization[validationField] && apiKey
+  const selectedAgentData = sweAgents.find(a => a.id === selectedAgent)
+  const requiresAuth = selectedAgentData?.configType === 'oauth'
+  const isFormValid = customization[validationField] && (requiresAuth ? isAuthenticated : apiKey)
 
   return (
     <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors">
@@ -178,19 +182,67 @@ export function SWEAgentSelection({
             )
           }
           
+          if (agent.configType === 'oauth') {
+            return (
+              <div className="space-y-3">
+                {!isAuthenticated ? (
+                  <div className="p-4 bg-blue-900/20 border border-blue-600 rounded-lg">
+                    <p className="text-blue-400 text-sm font-medium mb-2">GitHub Authentication Required</p>
+                    <p className="text-figma-text-secondary text-xs mb-3">
+                      Sign in with GitHub to use GitHub Copilot Coding Agent
+                    </p>
+                    <Button
+                      onClick={login}
+                      className="w-full bg-white text-black hover:bg-gray-200"
+                    >
+                      Sign in with GitHub
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-green-900/20 border border-green-600 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <SiGithub className="w-4 h-4 text-green-400" />
+                      <p className="text-green-400 text-sm font-medium">
+                        Authenticated as {user?.login}
+                      </p>
+                    </div>
+                    <p className="text-figma-text-secondary text-xs mt-1">
+                      Ready to use GitHub Copilot with your authenticated account
+                    </p>
+                  </div>
+                )}
+
+                <Button
+                  onClick={() => onAssignToSWEAgent()}
+                  disabled={!isFormValid || (workflowMode === 'breakdown' && selectedTasks.size === 0) || isAssigningTasks}
+                  className="w-full bg-white text-black hover:bg-gray-200 border border-gray-300"
+                >
+                  {isAssigningTasks ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Assigning...
+                    </>
+                  ) : (
+                    workflowMode === 'breakdown' 
+                      ? `Assign Selected Tasks (${selectedTasks.size})` 
+                      : 'Assign One-Shot Implementation'
+                  )}
+                </Button>
+              </div>
+            )
+          }
+          
           if (agent.requiresApiKey) {
             return (
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="apiKey" className="text-figma-text-primary">
-                    {agent.configType === 'pat' ? 'Personal Access Token (PAT)' : 
-                     agent.configType === 'azure-openai' ? 'API Key & Endpoint' : 'API Key'}
+                    {agent.configType === 'azure-openai' ? 'API Key & Endpoint' : 'API Key'}
                   </Label>
                   <Input
                     id="apiKey"
                     type="password"
                     placeholder={
-                      agent.configType === 'pat' ? 'Enter your GitHub PAT...' :
                       agent.configType === 'azure-openai' ? 'Enter your Azure OpenAI API Key...' :
                       'Enter your API key...'
                     }
@@ -247,4 +299,4 @@ export function SWEAgentSelection({
       </CardContent>
     </Card>
   )
-} 
+}      
