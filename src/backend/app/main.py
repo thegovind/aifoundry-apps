@@ -1435,15 +1435,15 @@ async def generate_task_breakdown(template_id: str, request: CustomizationReques
 async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
     """Assign customization task to SWE agent"""
     try:
-        print(f"DEBUG: Looking for template_id: {template_id}")
-        print(f"DEBUG: templates_data type: {type(templates_data)}")
-        print(f"DEBUG: First template type: {type(templates_data[0]) if templates_data else 'No templates'}")
+        logger.debug(f"Looking for template_id: {template_id}")
+        logger.debug(f"templates_data type: {type(templates_data)}")
+        logger.debug(f"First template type: {type(templates_data[0]) if templates_data else 'No templates'}")
         template = next((t for t in templates_data if t.id == template_id), None)
-        print(f"DEBUG: Found template: {template}")
+        logger.debug(f"Found template: {template}")
         pattern = None
         if not template:
             pattern = next((p for p in patterns_data if p["id"] == template_id), None)
-            print(f"DEBUG: Found pattern: {pattern}")
+            logger.debug(f"Found pattern: {pattern}")
             if not pattern:
                 raise HTTPException(status_code=404, detail="Template or pattern not found")
         
