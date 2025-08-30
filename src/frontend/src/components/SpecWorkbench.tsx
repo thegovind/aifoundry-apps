@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import { ArrowLeft, Settings, GitBranch, Loader2, Save, FileText } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -185,7 +186,9 @@ export function SpecWorkbench() {
   }
 
   const assignToSWEAgent = async (taskId?: string) => {
-    if (!selectedAgent || !apiKey) return
+    const { accessToken } = useAuth()
+    
+    if (!selectedAgent || !accessToken) return
 
     setIsAssigningTasks(true)
     try {
@@ -198,7 +201,7 @@ export function SpecWorkbench() {
 
       const payload = {
         agent_id: selectedAgent,
-        api_key: apiKey,
+        api_key: accessToken,
         template_id: spec?.id || specId,
         customization: mappedCustomization,
         ...(taskId ? { task_id: taskId } : { 

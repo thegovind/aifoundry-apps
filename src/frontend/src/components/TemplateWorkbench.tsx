@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import { ArrowLeft, Settings, GitBranch, Loader2 } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -115,13 +116,15 @@ export function TemplateWorkbench() {
   }
 
   const assignToSWEAgent = async (taskId?: string) => {
-    if (!selectedAgent || !apiKey) return
+    const { accessToken } = useAuth()
+    
+    if (!selectedAgent || !accessToken) return
 
     setIsAssigningTasks(true)
     try {
       const payload = {
         agent_id: selectedAgent,
-        api_key: apiKey,
+        api_key: accessToken,
         template_id: templateId,
         customization,
         ...(taskId ? { task_id: taskId } : { 
@@ -534,3 +537,5 @@ export function TemplateWorkbench() {
     </div>
   )
 }
+
+export default TemplateWorkbench
