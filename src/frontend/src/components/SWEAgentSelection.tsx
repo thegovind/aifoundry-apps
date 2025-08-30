@@ -22,12 +22,14 @@ interface SWEAgentSelectionProps {
   setSelectedAgent: (agent: string) => void
   apiKey: string
   setApiKey: (key: string) => void
+  endpoint: string
+  setEndpoint: (endpoint: string) => void
   customization: any
   workflowMode: 'breakdown' | 'oneshot'
   selectedTasks: Set<string>
   isAssigningTasks: boolean
-  onAssignToSWEAgent: () => void
-  validationField: string // The field name to validate (e.g., 'customer_scenario' or 'scenarioDescription')
+  onAssignToSWEAgent: (endpoint?: string) => void
+  validationField: string
 }
 
 const CognitionLogo = ({ className }: { className?: string }) => (
@@ -55,7 +57,7 @@ const sweAgents: SWEAgent[] = [
     icon: <SiOpenai className="w-6 h-6 text-white" />,
     requiresApiKey: true,
     configType: 'azure-openai',
-    instructions: 'Deploy Azure OpenAI Codex model at ai.azure.com. Go to Azure AI Studio > Deployments > Create new deployment > Select Codex model. You need the API Key and Endpoint. GitHub Actions workflows will be automatically created for your tasks.'
+    instructions: 'Deploy Azure OpenAI Codex model following this guide: https://devblogs.microsoft.com/all-things-azure/securely-turbo%E2%80%91charge-your-software-delivery-with-the-codex-coding-agent-on-azure-openai/#step-1-%E2%80%93-deploy-a-codex-model-in-azure-ai-foundry. You need the API Key and Endpoint. GitHub Actions workflows will be automatically created for your tasks.'
   },
   {
     id: 'devin',
@@ -81,6 +83,8 @@ export function SWEAgentSelection({
   setSelectedAgent,
   apiKey,
   setApiKey,
+  endpoint,
+  setEndpoint,
   customization,
   workflowMode,
   selectedTasks,
@@ -88,9 +92,8 @@ export function SWEAgentSelection({
   onAssignToSWEAgent,
   validationField
 }: SWEAgentSelectionProps) {
-  const [endpoint, setEndpoint] = useState<string>('')
-
-  const isFormValid = customization[validationField] && apiKey
+  const isFormValid = customization[validationField] && apiKey && 
+    (selectedAgent !== 'codex-cli' || endpoint)
 
   return (
     <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors">
@@ -159,7 +162,7 @@ export function SWEAgentSelection({
                 </div>
                 {/* Assignment Button */}
                 <Button
-                  onClick={() => onAssignToSWEAgent()}
+                  onClick={() => onAssignToSWEAgent(endpoint)}
                   disabled={!isFormValid || (workflowMode === 'breakdown' && selectedTasks.size === 0) || isAssigningTasks}
                   className="w-full bg-white text-black hover:bg-gray-200 border border-gray-300"
                 >
@@ -223,7 +226,7 @@ export function SWEAgentSelection({
 
                 {/* Assignment Button */}
                 <Button
-                  onClick={() => onAssignToSWEAgent()}
+                  onClick={() => onAssignToSWEAgent(endpoint)}
                   disabled={!isFormValid || (workflowMode === 'breakdown' && selectedTasks.size === 0) || isAssigningTasks}
                   className="w-full bg-white text-black hover:bg-gray-200 border border-gray-300"
                 >
@@ -247,4 +250,4 @@ export function SWEAgentSelection({
       </CardContent>
     </Card>
   )
-} 
+}    

@@ -335,6 +335,7 @@ export function PatternWorkbench() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [apiKey, setApiKey] = useState<string>('')
+  const [endpoint, setEndpoint] = useState<string>('')
   const [taskBreakdown, setTaskBreakdown] = useState<TaskBreakdown[]>([])
   const [isGeneratingTasks, setIsGeneratingTasks] = useState(false)
   const [isAssigningTasks, setIsAssigningTasks] = useState(false)
@@ -382,7 +383,7 @@ export function PatternWorkbench() {
     }
   }
 
-  const assignToSWEAgent = async (taskId?: string) => {
+  const assignToSWEAgent = async (taskId?: string, endpointParam?: string) => {
     if (!selectedAgent || !apiKey) return
 
     setIsAssigningTasks(true)
@@ -391,6 +392,7 @@ export function PatternWorkbench() {
       const payload = {
         agent_id: selectedAgent,
         api_key: apiKey,
+        endpoint: endpointParam || endpoint,
         template_id: patternId,
         customization: mappedCustomization,
         ...(taskId ? { task_id: taskId } : { 
@@ -669,6 +671,8 @@ export function PatternWorkbench() {
               setSelectedAgent={setSelectedAgent}
               apiKey={apiKey}
               setApiKey={setApiKey}
+              endpoint={endpoint}
+              setEndpoint={setEndpoint}
               customization={customization}
               workflowMode={workflowMode}
               selectedTasks={selectedTasks}

@@ -87,6 +87,7 @@ class TaskBreakdownResponse(BaseModel):
 class SWEAgentRequest(BaseModel):
     agent_id: str
     api_key: str
+    endpoint: Optional[str] = None
     template_id: str
     customization: CustomizationRequest
     task_id: Optional[str] = None
@@ -963,7 +964,7 @@ async def generate_task_breakdown(template_id: str, request: CustomizationReques
     print(f"DEBUG: Request data: {request}")
     print(f"DEBUG: Request dict: {request.dict()}")
     try:
-        template = next((t for t in templates_data if t["id"] == template_id), None)
+        template = next((t for t in templates_data if t.id == template_id), None)
         pattern = None
         
         if not template:
@@ -1340,10 +1341,15 @@ async def generate_task_breakdown(template_id: str, request: CustomizationReques
 async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
     """Assign customization task to SWE agent"""
     try:
-        template = next((t for t in templates_data if t["id"] == template_id), None)
+        print(f"DEBUG: Looking for template_id: {template_id}")
+        print(f"DEBUG: templates_data type: {type(templates_data)}")
+        print(f"DEBUG: First template type: {type(templates_data[0]) if templates_data else 'No templates'}")
+        template = next((t for t in templates_data if t.id == template_id), None)
+        print(f"DEBUG: Found template: {template}")
         pattern = None
         if not template:
             pattern = next((p for p in patterns_data if p["id"] == template_id), None)
+            print(f"DEBUG: Found pattern: {pattern}")
             if not pattern:
                 raise HTTPException(status_code=404, detail="Template or pattern not found")
         
@@ -1354,7 +1360,7 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
             
             devin_payload = {
                 "prompt": f"""
-                Customize the {item['title']} {item_type} for the following scenario:
+                Customize the {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} {item_type} for the following scenario:
                 
                 Customer: {request.customization.company_name}
                 Industry: {request.customization.industry}
@@ -1368,13 +1374,13 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
                 Use MCP Tools: {request.customization.use_mcp_tools}
                 Use A2A: {request.customization.use_a2a}
                 
-                Repository: {item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')}
+                Repository: {getattr(item, 'github_url', item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview') if isinstance(item, dict) else 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')}
                 Mode: {request.mode}
                 
                 {"If MCP Tools is enabled, leverage Model Context Protocol capabilities in your implementation." if request.customization.use_mcp_tools else ""}
                 {"If A2A is enabled, utilize Agent-to-Agent communication patterns in your implementation." if request.customization.use_a2a else ""}
                 """.strip(),
-                "repo_url": item['github_url']
+                "repo_url": getattr(item, 'github_url', item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview') if isinstance(item, dict) else 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')
             }
             
             headers = {
@@ -1412,7 +1418,7 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
             
             if request.customization.use_mcp_tools:
                 try:
-                    repo_url = item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')
+                    repo_url = getattr(item, 'github_url', item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview') if isinstance(item, dict) else 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')
                     match = re.search(r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$', repo_url)
                     if not match:
                         raise ValueError(f"Could not extract owner/repo from URL: {repo_url}")
@@ -1420,7 +1426,7 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
                     owner, repo = match.groups()
                     
                     problem_statement = f"""
-Implement customizations for {item['title']} {item_type}:
+Implement customizations for {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} {item_type}:
 
 Customer: {request.customization.company_name}
 Industry: {request.customization.industry}
@@ -1437,7 +1443,7 @@ Mode: {request.mode}
 Please implement these customizations following best practices and maintaining code quality.
                     """.strip()
                     
-                    pr_title = f"Implement {item['title']} {item_type} customizations for {request.customization.company_name}"
+                    pr_title = f"Implement {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} {item_type} customizations for {request.customization.company_name}"
                     
                     mcp_client = create_github_mcp_client()
                     result = await mcp_client.create_pull_request_with_copilot(
@@ -1492,11 +1498,85 @@ Please implement these customizations following best practices and maintaining c
             }
             
         elif request.agent_id == "codex-cli":
-            return {
-                "status": "success", 
-                "agent": "codex-cli",
-                "message": "Task assigned to Codex-cli (placeholder implementation)"
-            }
+            from .github_service import GitHubService
+            
+            try:
+                item = template if template else pattern
+                item_type = "template" if template else "pattern"
+                
+                if not item:
+                    spec = next((s for s in specs_data if s["id"] == template_id), None)
+                    if spec:
+                        item = spec
+                        item_type = "spec"
+                    else:
+                        raise HTTPException(status_code=404, detail="Template, pattern, or spec not found")
+                
+                if not item:
+                    raise HTTPException(status_code=404, detail="No item found for processing")
+                
+                github_service = GitHubService()
+                
+                title = getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')
+                
+                safe_name = re.sub(r'[^a-zA-Z0-9-]', '-', title.lower())
+                repo_name = f"{safe_name}-{request.customization.company_name.lower().replace(' ', '-')}"
+                
+                repo_result = github_service.create_repository(
+                    repo_name=repo_name,
+                    description=f"Azure OpenAI Codex implementation for {title}",
+                    private=False
+                )
+                
+                if not repo_result["success"]:
+                    raise Exception(f"Failed to create repository: {repo_result['error']}")
+                
+                agents_content = github_service.generate_agents_md_content(
+                    content_type=item_type,
+                    item=item.__dict__ if hasattr(item, '__dict__') else item,
+                    customization=request.customization.__dict__
+                )
+                
+                file_result = github_service.create_file(
+                    repo_name=repo_result["repo_name"],
+                    file_path="agents.md",
+                    content=agents_content,
+                    commit_message="Add agents.md with project specification"
+                )
+                
+                if not file_result["success"]:
+                    logger.warning(f"Failed to create agents.md: {file_result['error']}")
+                
+                workflow_content = github_service.generate_github_actions_workflow(
+                    agent_type="codex-cli",
+                    azure_config={"endpoint": request.endpoint, "api_key": "***"}
+                )
+                
+                workflow_result = github_service.create_file(
+                    repo_name=repo_result["repo_name"],
+                    file_path=".github/workflows/codex-automation.yml",
+                    content=workflow_content,
+                    commit_message="Add GitHub Actions workflow for Azure OpenAI Codex automation"
+                )
+                
+                if not workflow_result["success"]:
+                    logger.warning(f"Failed to create workflow: {workflow_result['error']}")
+                
+                return {
+                    "status": "success",
+                    "agent": "codex-cli",
+                    "message": f"Repository created successfully with Azure OpenAI Codex automation setup",
+                    "repository_url": repo_result["repo_url"],
+                    "repository_name": repo_result["repo_name"]
+                }
+                
+            except Exception as e:
+                logger.error(f"Codex-cli assignment error: {e}")
+                return {
+                    "status": "error",
+                    "agent": "codex-cli",
+                    "message": f"Failed to create repository and setup Codex automation: {str(e)}"
+                }
             
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported agent: {request.agent_id}")
