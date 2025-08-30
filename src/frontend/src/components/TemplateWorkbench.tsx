@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { ArrowLeft, Settings, GitBranch, Loader2 } from 'lucide-react'
+import { ArrowLeft, Settings, GitBranch, Loader2, X } from 'lucide-react'
 import { Button } from './ui/button'
+import { toast } from '@/hooks/use-toast'
+import { ToastAction } from './ui/toast'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -37,6 +39,7 @@ interface TaskBreakdown {
 
 export function TemplateWorkbench() {
   const { templateId } = useParams<{ templateId: string }>()
+  const { accessToken, isAuthenticated } = useAuth()
   const [template, setTemplate] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
   const [customization, setCustomization] = useState<CustomizationRequest>({
@@ -53,11 +56,15 @@ export function TemplateWorkbench() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [apiKey, setApiKey] = useState<string>('')
+  const [endpoint, setEndpoint] = useState<string>('')
   const [taskBreakdown, setTaskBreakdown] = useState<TaskBreakdown[]>([])
   const [isGeneratingTasks, setIsGeneratingTasks] = useState(false)
   const [isAssigningTasks, setIsAssigningTasks] = useState(false)
   const [workflowMode, setWorkflowMode] = useState<'breakdown' | 'oneshot'>('oneshot')
   const [assignmentResponse, setAssignmentResponse] = useState<any>(null)
+  const [assignmentPhase, setAssignmentPhase] = useState<'idle' | 'fork' | 'write' | 'agent' | 'done'>('idle')
+  const [banner, setBanner] = useState<{ repoUrl?: string; sessionUrl?: string; agent?: string } | null>(null)
+  const responseRef = useRef<HTMLDivElement | null>(null)
 
   const apiUrl = import.meta.env.VITE_API_URL
 
@@ -115,16 +122,21 @@ export function TemplateWorkbench() {
     }
   }
 
-  const assignToSWEAgent = async (taskId?: string) => {
-    const { accessToken } = useAuth()
+  const assignToSWEAgent = async (taskId?: string, endpointParam?: string) => {
     
-    if (!selectedAgent || !accessToken) return
+    if (selectedAgent === 'codex-cli' || selectedAgent === 'devin') {
+      if (!selectedAgent || !apiKey) return
+    } else {
+      if (!selectedAgent || !accessToken) return
+    }
 
     setIsAssigningTasks(true)
+    setAssignmentPhase('fork')
     try {
       const payload = {
         agent_id: selectedAgent,
-        api_key: accessToken,
+        api_key: (selectedAgent === 'codex-cli' || selectedAgent === 'devin') ? apiKey : accessToken,
+        endpoint: endpointParam || endpoint,
         template_id: templateId,
         customization,
         ...(taskId ? { task_id: taskId } : { 
@@ -135,17 +147,71 @@ export function TemplateWorkbench() {
       const response = await fetch(`${apiUrl}/api/templates/${templateId}/assign`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
         },
         body: JSON.stringify(payload)
       })
 
       if (response.ok) {
+        setAssignmentPhase('agent')
         const result = await response.json()
+        setAssignmentPhase('done')
         console.log('Assignment successful:', result)
         
         // Store the response for display
         setAssignmentResponse(result)
+
+        // Toast with quick links
+        const repoUrl = result.repository_url as string | undefined
+        const sessionUrl = (result.session_url || (result.session_id ? `https://app.devin.ai/sessions/${result.session_id}` : '')) as string | undefined
+        const agentName = (result.agent || selectedAgent || 'agent') as string
+        const repoName = repoUrl ? (new URL(repoUrl).pathname.replace(/^\//, '')) : ''
+        const copyPayload = [repoUrl, sessionUrl].filter(Boolean).join('\n')
+
+        const t = toast({
+          title: repoName ? `Deployed to ${repoName}` : `Assignment started${template?.title ? ` for ${template.title}` : ''}`,
+          description: (
+            <div className="space-x-3">
+              <span className="mr-2 text-figma-text-secondary">Agent: {agentName}</span>
+              {result.repository_url && (
+                <a
+                  className="underline"
+                  href={result.repository_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open Repo
+                </a>
+              )}
+              {(result.session_url || result.session_id) && (
+                <a
+                  className="underline"
+                  href={result.session_url || `https://app.devin.ai/sessions/${result.session_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open Devin Session
+                </a>
+              )}
+            </div>
+          ),
+          action: (
+            <ToastAction
+              altText="Copy links"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(copyPayload)
+                  toast({ title: 'Links copied' })
+                } catch {}
+              }}
+            >
+              Copy Links
+            </ToastAction>
+          ),
+        })
+        // Set persistent banner
+        setBanner({ repoUrl, sessionUrl, agent: agentName })
         
         if (!taskId && workflowMode === 'breakdown') {
           setSelectedTasks(new Set())
@@ -160,6 +226,17 @@ export function TemplateWorkbench() {
           message: error.detail || 'Unknown error occurred',
           agent: selectedAgent
         })
+
+        toast({
+          title: `Assignment failed${template?.title ? ` for ${template.title}` : ''}`,
+          description: 'View details below',
+          action: (
+            <ToastAction altText="View details" onClick={() => responseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              View details
+            </ToastAction>
+          ),
+          variant: 'destructive' as any,
+        })
       }
     } catch (error) {
       console.error('Error assigning to SWE agent:', error)
@@ -170,8 +247,20 @@ export function TemplateWorkbench() {
         message: `Error assigning to SWE agent: ${error}`,
         agent: selectedAgent
       })
+
+      toast({
+        title: `Assignment error${template?.title ? ` for ${template.title}` : ''}`,
+        description: 'View details below',
+        action: (
+          <ToastAction altText="View details" onClick={() => responseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+            View details
+          </ToastAction>
+        ),
+        variant: 'destructive' as any,
+      })
     } finally {
       setIsAssigningTasks(false)
+      setAssignmentPhase('idle')
     }
   }
 
@@ -206,6 +295,19 @@ export function TemplateWorkbench() {
           Back to Templates
         </Link>
         
+        {banner && (
+          <div className="mb-3 rounded border border-figma-light-gray bg-figma-medium-gray p-3 flex items-center justify-between">
+            <div className="text-sm text-figma-text-secondary space-x-3">
+              <span>Deployment ready{banner.agent ? ` • Agent: ${banner.agent}` : ''}</span>
+              {banner.repoUrl && (<a className="underline" href={banner.repoUrl} target="_blank" rel="noopener noreferrer">Open Repo</a>)}
+              {banner.sessionUrl && (<a className="underline" href={banner.sessionUrl} target="_blank" rel="noopener noreferrer">Open Devin Session</a>)}
+            </div>
+            <button className="text-figma-text-secondary hover:text-white" onClick={() => setBanner(null)}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         <div className="flex items-center space-x-4 mb-6">
           <div className="text-4xl">{template.icon}</div>
           <div>
@@ -476,6 +578,8 @@ export function TemplateWorkbench() {
             setSelectedAgent={setSelectedAgent}
             apiKey={apiKey}
             setApiKey={setApiKey}
+            endpoint={endpoint}
+            setEndpoint={setEndpoint}
             customization={customization}
             workflowMode={workflowMode}
             selectedTasks={selectedTasks}
@@ -483,6 +587,25 @@ export function TemplateWorkbench() {
             onAssignToSWEAgent={assignToSWEAgent}
             validationField="customer_scenario"
           />
+
+          {isAssigningTasks && (
+            <Card className="bg-figma-medium-gray border-figma-light-gray">
+              <CardHeader>
+                <CardTitle className="text-figma-text-primary flex items-center">
+                  <Settings className="h-5 w-5 mr-2" />
+                  Deployment In Progress
+                </CardTitle>
+                <CardDescription className="text-figma-text-secondary">Forking repo, adding agents.md, and starting agent…</CardDescription>
+              </CardHeader>
+              <CardContent ref={responseRef}>
+                <ul className="text-sm text-figma-text-secondary space-y-2">
+                  <li className={`${assignmentPhase !== 'idle' ? 'text-white' : ''}`}>1. Fork template into your GitHub</li>
+                  <li className={`${assignmentPhase === 'write' || assignmentPhase === 'agent' || assignmentPhase === 'done' ? 'text-white' : ''}`}>2. Add agents.md with customization</li>
+                  <li className={`${assignmentPhase === 'agent' || assignmentPhase === 'done' ? 'text-white' : ''}`}>3. Start selected coding agent</li>
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
           {assignmentResponse && (
             <Card className="bg-figma-medium-gray border-figma-light-gray">
@@ -520,6 +643,28 @@ export function TemplateWorkbench() {
                   <p className="text-figma-text-primary text-sm leading-relaxed">
                     {assignmentResponse.message}
                   </p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    {assignmentResponse.repository_url && (
+                      <a
+                        href={assignmentResponse.repository_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm underline text-figma-text-secondary hover:text-white"
+                      >
+                        Open GitHub Repository
+                      </a>
+                    )}
+                    {(assignmentResponse.session_url || assignmentResponse.session_id) && (
+                      <a
+                        href={assignmentResponse.session_url || `https://app.devin.ai/sessions/${assignmentResponse.session_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm underline text-figma-text-secondary hover:text-white"
+                      >
+                        Open Devin Session
+                      </a>
+                    )}
+                  </div>
                   {assignmentResponse.result && (
                     <div className="mt-3 p-3 bg-figma-dark-gray rounded border border-figma-light-gray">
                       <p className="text-figma-text-secondary text-xs mb-1">Response Details:</p>

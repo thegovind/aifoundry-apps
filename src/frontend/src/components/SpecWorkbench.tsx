@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { ArrowLeft, Settings, GitBranch, Loader2, Save, FileText } from 'lucide-react'
 import { Button } from './ui/button'
+import { toast } from '@/hooks/use-toast'
+import { ToastAction } from './ui/toast'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -45,6 +47,7 @@ interface TaskBreakdown {
 }
 
 export function SpecWorkbench() {
+  const { accessToken, isAuthenticated } = useAuth()
   const { specId } = useParams()
   const navigate = useNavigate()
   const isNewSpec = specId === 'new'
@@ -72,11 +75,15 @@ export function SpecWorkbench() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [apiKey, setApiKey] = useState<string>('')
+  const [endpoint, setEndpoint] = useState<string>('')
   const [taskBreakdown, setTaskBreakdown] = useState<TaskBreakdown[]>([])
   const [isGeneratingTasks, setIsGeneratingTasks] = useState(false)
   const [isAssigningTasks, setIsAssigningTasks] = useState(false)
+  const [assignmentPhase, setAssignmentPhase] = useState<'idle' | 'agent' | 'done'>('idle')
   const [workflowMode, setWorkflowMode] = useState<'breakdown' | 'oneshot'>('breakdown')
   const [assignmentResponse, setAssignmentResponse] = useState<{ status: string; message: string; agent?: string } | null>(null)
+  const [banner, setBanner] = useState<{ sessionUrl?: string; agent?: string } | null>(null)
+  const responseRef = useRef<HTMLDivElement | null>(null)
   
   const apiUrl = import.meta.env.VITE_API_URL
 
@@ -185,12 +192,16 @@ export function SpecWorkbench() {
     }
   }
 
-  const assignToSWEAgent = async (taskId?: string) => {
-    const { accessToken } = useAuth()
+  const assignToSWEAgent = async (taskId?: string, endpointParam?: string) => {
     
-    if (!selectedAgent || !accessToken) return
+    if (selectedAgent === 'codex-cli' || selectedAgent === 'devin') {
+      if (!selectedAgent || !apiKey) return
+    } else {
+      if (!selectedAgent || !accessToken) return
+    }
 
     setIsAssigningTasks(true)
+    setAssignmentPhase('agent')
     try {
       const mappedCustomization = {
         ...customization,
@@ -201,7 +212,8 @@ export function SpecWorkbench() {
 
       const payload = {
         agent_id: selectedAgent,
-        api_key: accessToken,
+        api_key: (selectedAgent === 'codex-cli' || selectedAgent === 'devin') ? apiKey : accessToken,
+        endpoint: endpointParam || endpoint,
         template_id: spec?.id || specId,
         customization: mappedCustomization,
         ...(taskId ? { task_id: taskId } : { 
@@ -212,15 +224,47 @@ export function SpecWorkbench() {
       const response = await fetch(`${apiUrl}/api/specs/${spec?.id || specId}/assign`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
         },
         body: JSON.stringify(payload)
       })
 
       if (response.ok) {
         const result = await response.json()
+        setAssignmentPhase('done')
         console.log('Assignment successful:', result)
         setAssignmentResponse(result)
+
+        const sessionUrl = (result.session_url || (result.session_id ? `https://app.devin.ai/sessions/${result.session_id}` : '')) as string | undefined
+        const agentName = (result.agent || selectedAgent || 'agent') as string
+        setBanner({ sessionUrl, agent: agentName })
+        toast({
+          title: 'Agent session started',
+          description: (
+            <div className="space-x-3">
+              <span className="mr-2 text-figma-text-secondary">Agent: {agentName}</span>
+              {(result.session_url || result.session_id) && (
+                <a className="underline" href={result.session_url || `https://app.devin.ai/sessions/${result.session_id}`} target="_blank" rel="noopener noreferrer">Open Devin Session</a>
+              )}
+            </div>
+          ),
+          action: (
+            <ToastAction
+              altText="Copy link"
+              onClick={async () => {
+                try {
+                  if (sessionUrl) {
+                    await navigator.clipboard.writeText(sessionUrl)
+                    toast({ title: 'Link copied' })
+                  }
+                } catch {}
+              }}
+            >
+              Copy Link
+            </ToastAction>
+          ),
+        })
         
         if (!taskId && workflowMode === 'breakdown') {
           setSelectedTasks(new Set())
@@ -233,6 +277,16 @@ export function SpecWorkbench() {
           message: error.detail || 'Unknown error occurred',
           agent: selectedAgent
         })
+        toast({
+          title: 'Assignment failed',
+          description: 'View details below',
+          action: (
+            <ToastAction altText="View details" onClick={() => responseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              View details
+            </ToastAction>
+          ),
+          variant: 'destructive' as any,
+        })
       }
     } catch (error) {
       console.error('Error assigning to SWE agent:', error)
@@ -241,8 +295,19 @@ export function SpecWorkbench() {
         message: `Error assigning to SWE agent: ${error}`,
         agent: selectedAgent
       })
+      toast({
+        title: 'Assignment error',
+        description: 'View details below',
+        action: (
+          <ToastAction altText="View details" onClick={() => responseRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+            View details
+          </ToastAction>
+        ),
+        variant: 'destructive' as any,
+      })
     } finally {
       setIsAssigningTasks(false)
+      setAssignmentPhase('idle')
     }
   }
 
@@ -252,6 +317,15 @@ export function SpecWorkbench() {
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="h-8 w-8 animate-spin text-figma-text-secondary" />
         </div>
+        {banner && (
+          <div className="mb-4 rounded border border-figma-light-gray bg-figma-medium-gray p-3 flex items-center justify-between">
+            <div className="text-sm text-figma-text-secondary space-x-3">
+              <span>Agent session ready{banner.agent ? ` • Agent: ${banner.agent}` : ''}</span>
+              {banner.sessionUrl && (<a className="underline" href={banner.sessionUrl} target="_blank" rel="noopener noreferrer">Open Devin Session</a>)}
+            </div>
+            <button className="text-figma-text-secondary hover:text-white" onClick={() => setBanner(null)}>×</button>
+          </div>
+        )}
       </div>
     )
   }
@@ -560,6 +634,8 @@ export function SpecWorkbench() {
               setSelectedAgent={setSelectedAgent}
               apiKey={apiKey}
               setApiKey={setApiKey}
+              endpoint={endpoint}
+              setEndpoint={setEndpoint}
               customization={customization}
               workflowMode={workflowMode}
               selectedTasks={selectedTasks}
@@ -568,12 +644,51 @@ export function SpecWorkbench() {
               validationField="customer_scenario"
             />
 
+            {isAssigningTasks && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray">
+                <CardHeader>
+                  <CardTitle className="text-figma-text-primary flex items-center">
+                    <Settings className="h-5 w-5 mr-2" />
+                    Assignment In Progress
+                  </CardTitle>
+                  <CardDescription className="text-figma-text-secondary">Starting selected coding agent…</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="text-sm text-figma-text-secondary space-y-2">
+                    <li className={`${assignmentPhase !== 'idle' ? 'text-white' : ''}`}>1. Start selected coding agent</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            )}
+
             {assignmentResponse && (
               <Card className="bg-figma-medium-gray border-figma-light-gray">
                 <CardHeader>
                   <CardTitle className="text-figma-text-primary">Assignment Result</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent ref={responseRef}>
+                  <div className="mb-3 flex flex-wrap gap-3">
+                    {(assignmentResponse as any)?.session_url && (
+                      <a
+                        href={(assignmentResponse as any).session_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm underline text-figma-text-secondary hover:text-white"
+                      >
+                        Open Devin Session
+                      </a>
+                    )}
+                    {(assignmentResponse as any)?.session_id && (
+                      <a
+                        href={`https://app.devin.ai/sessions/${(assignmentResponse as any).session_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm underline text-figma-text-secondary hover:text-white"
+                      >
+                        Open Devin Session
+                      </a>
+                    )}
+                  </div>
                   <pre className="text-sm text-figma-text-secondary whitespace-pre-wrap bg-figma-dark-gray p-4 rounded border border-figma-light-gray overflow-x-auto">
                     {JSON.stringify(assignmentResponse, null, 2)}
                   </pre>

@@ -12,6 +12,7 @@ import { SpecWorkbench } from './components/SpecWorkbench'
 import { AuthCallback } from './components/AuthCallback'
 import { UserDashboard } from './components/UserDashboard'
 import { Footer } from './components/Footer'
+import { Toaster } from './components/ui/toaster'
 
 export interface Template {
   id: string
@@ -139,6 +140,7 @@ function App() {
           </Routes>
         </main>
         <Footer />
+        <Toaster />
       </div>
     </AuthProvider>
   )

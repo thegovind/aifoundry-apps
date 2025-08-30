@@ -9,7 +9,7 @@ export function Header() {
     <header className="bg-figma-black border-b border-figma-medium-gray">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-3">
+          <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
             <SEAgentFactoryLogo className="w-6 h-6" />
             <div className="flex flex-col md:flex-row md:items-center">
               <span className="text-lg font-medium text-figma-text-primary">Foundry Apps</span>
@@ -17,11 +17,16 @@ export function Header() {
                 Customize AI solution accelerators for your scenario using SWE Agents
               </span>
             </div>
-          </div>
+          </Link>
           
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
+                <Link to="/">
+                  <button className="text-figma-text-secondary hover:text-figma-text-primary px-3 py-2 rounded-md text-sm font-medium">
+                    Home
+                  </button>
+                </Link>
                 <Link to="/dashboard">
                   <button className="text-figma-text-secondary hover:text-figma-text-primary px-3 py-2 rounded-md text-sm font-medium">
                     Dashboard
