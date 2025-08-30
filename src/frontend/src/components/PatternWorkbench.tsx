@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import mermaid from 'mermaid'
 import { ArrowLeft, Settings, GitBranch, Loader2 } from 'lucide-react'
 import { Button } from './ui/button'
@@ -384,14 +385,20 @@ export function PatternWorkbench() {
   }
 
   const assignToSWEAgent = async (taskId?: string, endpointParam?: string) => {
-    if (!selectedAgent || !apiKey) return
+    const { accessToken } = useAuth()
+    
+    if (selectedAgent === 'codex-cli') {
+      if (!selectedAgent || !apiKey) return
+    } else {
+      if (!selectedAgent || !accessToken) return
+    }
 
     setIsAssigningTasks(true)
     try {
       const mappedCustomization = mapPatternToCustomizationRequest()
       const payload = {
         agent_id: selectedAgent,
-        api_key: apiKey,
+        api_key: selectedAgent === 'codex-cli' ? apiKey : accessToken,
         endpoint: endpointParam || endpoint,
         template_id: patternId,
         customization: mappedCustomization,
@@ -656,7 +663,8 @@ export function PatternWorkbench() {
                               <span className="text-figma-text-secondary text-xs">Est. {task.estimatedTokens}</span>
                             </div>
                           </div>
-                        )                        )}
+                        ))}
+
                       </div>
                     )}
                   </div>

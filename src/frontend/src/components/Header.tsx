@@ -1,6 +1,10 @@
 import { SEAgentFactoryLogo } from './SEAgentFactoryLogo'
+import { useAuth } from '../contexts/AuthContext'
+import { Link } from 'react-router-dom'
 
 export function Header() {
+  const { user, login, logout, isAuthenticated } = useAuth()
+
   return (
     <header className="bg-figma-black border-b border-figma-medium-gray">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
@@ -13,6 +17,39 @@ export function Header() {
                 Customize AI solution accelerators for your scenario using SWE Agents
               </span>
             </div>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            {isAuthenticated ? (
+              <>
+                <Link to="/dashboard">
+                  <button className="text-figma-text-secondary hover:text-figma-text-primary px-3 py-2 rounded-md text-sm font-medium">
+                    Dashboard
+                  </button>
+                </Link>
+                <div className="flex items-center space-x-2">
+                  <img 
+                    src={user?.avatar_url} 
+                    alt={user?.login} 
+                    className="w-8 h-8 rounded-full"
+                  />
+                  <span className="text-figma-text-secondary text-sm">{user?.login}</span>
+                </div>
+                <button 
+                  onClick={logout}
+                  className="text-figma-text-secondary border border-figma-light-gray hover:bg-figma-medium-gray px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={login}
+                className="bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-md text-sm font-medium"
+              >
+                Sign in with GitHub
+              </button>
+            )}
           </div>
         </div>
       </div>

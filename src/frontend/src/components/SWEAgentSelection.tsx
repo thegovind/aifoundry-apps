@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { ExternalLink, Loader2 } from 'lucide-react'
-import { SiOpenai, SiReplit } from 'react-icons/si'
+import { Loader2 } from 'lucide-react'
+import { SiOpenai, SiReplit, SiGithub } from 'react-icons/si'
+import { useAuth } from '../contexts/AuthContext'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
@@ -12,7 +12,7 @@ interface SWEAgent {
   description: string
   icon: string | React.ReactNode
   requiresApiKey: boolean
-  configType?: 'api-key' | 'pat' | 'azure-openai' | 'azure-marketplace'
+  configType?: 'api-key' | 'pat' | 'azure-openai' | 'azure-marketplace' | 'oauth'
   instructions?: string
   comingSoon?: boolean
 }
@@ -45,10 +45,10 @@ const sweAgents: SWEAgent[] = [
     id: 'github-copilot',
     name: 'GitHub Copilot Coding Agent',
     description: 'AI pair programmer integrated with GitHub via MCP',
-    icon: <ExternalLink className="w-6 h-6 text-white" />,
+    icon: <SiGithub className="w-6 h-6 text-white" />,
     requiresApiKey: true,
-    configType: 'pat',
-    instructions: 'Generate a Personal Access Token (PAT) from GitHub Settings > Developer settings > Personal access tokens. The agent is invoked via Model Context Protocol (MCP) for seamless integration.'
+    configType: 'oauth',
+    instructions: 'Sign in with GitHub to use GitHub Copilot. The agent is invoked via Model Context Protocol (MCP) for seamless integration.'
   },
   {
     id: 'codex-cli',
@@ -65,16 +65,18 @@ const sweAgents: SWEAgent[] = [
     description: 'Advanced AI software engineer for complex coding tasks',
     icon: <CognitionLogo className="w-6 h-6 text-white" />,
     requiresApiKey: true,
-    configType: 'azure-marketplace',
-    instructions: 'First provision Devin from Azure Marketplace, then get your API key from https://app.devin.ai/settings/api-keys. The API key is required to authenticate with the Devin service for advanced coding tasks.'
+    configType: 'oauth',
+    instructions: 'Sign in with GitHub to deploy Devin for advanced AI software engineering tasks.'
   },
   {
     id: 'replit',
     name: 'Replit Agent',
     description: 'Coming Soon on Azure Marketplace',
     icon: <SiReplit className="w-6 h-6 text-white" />,
-    requiresApiKey: false,
-    comingSoon: true
+    requiresApiKey: true,
+    configType: 'oauth',
+    comingSoon: true,
+    instructions: 'Sign in with GitHub to use Replit Agent for seamless code execution and collaboration.'
   }
 ]
 
@@ -92,8 +94,10 @@ export function SWEAgentSelection({
   onAssignToSWEAgent,
   validationField
 }: SWEAgentSelectionProps) {
-  const isFormValid = customization[validationField] && apiKey && 
-    (selectedAgent !== 'codex-cli' || endpoint)
+  const { isAuthenticated, login, user } = useAuth()
+
+  const isFormValid = customization[validationField] && 
+    (selectedAgent === 'codex-cli' ? (apiKey && endpoint) : isAuthenticated)
 
   return (
     <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors">
@@ -139,28 +143,34 @@ export function SWEAgentSelection({
             )
           }
           
-          if (agent.configType === 'azure-marketplace') {
+          if (agent.configType === 'azure-openai') {
             return (
               <div className="space-y-3">
                 <div className="p-3 bg-blue-900/20 border border-blue-600 rounded-lg">
-                  <p className="text-blue-400 text-sm font-medium mb-2">Azure Marketplace Setup Required:</p>
-                  <ol className="text-figma-text-primary text-xs space-y-1 list-decimal list-inside">
-                    <li>Provision Devin from Azure Marketplace</li>
-                    <li>Get your API key from <a href="https://app.devin.ai/settings/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">app.devin.ai/settings/api-keys</a></li>
-                  </ol>
+                  <p className="text-blue-400 text-sm font-medium mb-2">Setup Instructions:</p>
+                  <p className="text-figma-text-secondary text-xs">
+                    {agent.instructions}
+                  </p>
                 </div>
                 <div>
-                  <Label htmlFor="apiKey" className="text-figma-text-primary">Devin API Key</Label>
+                  <Label htmlFor="apiKey" className="text-figma-text-primary">API Key & Endpoint</Label>
                   <Input
                     id="apiKey"
                     type="password"
-                    placeholder="Enter your Devin API key..."
+                    placeholder="Enter your Azure OpenAI API key..."
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
+                    className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary mb-2"
+                  />
+                  <Input
+                    id="endpoint"
+                    type="text"
+                    placeholder="Enter your Azure OpenAI endpoint..."
+                    value={endpoint}
+                    onChange={(e) => setEndpoint(e.target.value)}
                     className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
                   />
                 </div>
-                {/* Assignment Button */}
                 <Button
                   onClick={() => onAssignToSWEAgent(endpoint)}
                   disabled={!isFormValid || (workflowMode === 'breakdown' && selectedTasks.size === 0) || isAssigningTasks}
@@ -184,49 +194,35 @@ export function SWEAgentSelection({
           if (agent.requiresApiKey) {
             return (
               <div className="space-y-3">
-                <div>
-                  <Label htmlFor="apiKey" className="text-figma-text-primary">
-                    {agent.configType === 'pat' ? 'Personal Access Token (PAT)' : 
-                     agent.configType === 'azure-openai' ? 'API Key & Endpoint' : 'API Key'}
-                  </Label>
-                  <Input
-                    id="apiKey"
-                    type="password"
-                    placeholder={
-                      agent.configType === 'pat' ? 'Enter your GitHub PAT...' :
-                      agent.configType === 'azure-openai' ? 'Enter your Azure OpenAI API Key...' :
-                      'Enter your API key...'
-                    }
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
-                  />
-                </div>
-                
-                {agent.configType === 'azure-openai' && (
-                  <div>
-                    <Label htmlFor="endpoint" className="text-figma-text-primary">Azure OpenAI Endpoint</Label>
-                    <Input
-                      id="endpoint"
-                      type="text"
-                      placeholder="https://your-resource.openai.azure.com/"
-                      value={endpoint}
-                      onChange={(e) => setEndpoint(e.target.value)}
-                      className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
-                    />
+                {!isAuthenticated ? (
+                  <div className="p-4 bg-blue-900/20 border border-blue-600 rounded-lg">
+                    <p className="text-blue-400 text-sm font-medium mb-2">GitHub Authentication Required</p>
+                    <p className="text-figma-text-secondary text-xs mb-3">
+                      Sign in with GitHub to deploy {agent.name} to your repositories
+                    </p>
+                    <Button
+                      onClick={login}
+                      className="w-full bg-white text-black hover:bg-gray-200"
+                    >
+                      Sign in with GitHub
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-green-900/20 border border-green-600 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <SiGithub className="w-4 h-4 text-green-400" />
+                      <p className="text-green-400 text-sm font-medium">
+                        Authenticated as {user?.login}
+                      </p>
+                    </div>
+                    <p className="text-figma-text-secondary text-xs mt-1">
+                      Ready to deploy {agent.name} to your repositories
+                    </p>
                   </div>
                 )}
                 
-                {agent.instructions && (
-                  <div className="p-3 bg-blue-900/20 border border-blue-600 rounded-lg">
-                    <p className="text-blue-400 text-sm font-medium mb-1">Setup Instructions:</p>
-                    <p className="text-figma-text-primary text-xs">{agent.instructions}</p>
-                  </div>
-                )}
-
-                {/* Assignment Button */}
                 <Button
-                  onClick={() => onAssignToSWEAgent(endpoint)}
+                  onClick={() => onAssignToSWEAgent()}
                   disabled={!isFormValid || (workflowMode === 'breakdown' && selectedTasks.size === 0) || isAssigningTasks}
                   className="w-full bg-white text-black hover:bg-gray-200 border border-gray-300"
                 >
@@ -245,9 +241,55 @@ export function SWEAgentSelection({
             )
           }
           
-          return null
+          return (
+            <div className="space-y-3">
+              {!isAuthenticated ? (
+                <div className="p-4 bg-blue-900/20 border border-blue-600 rounded-lg">
+                  <p className="text-blue-400 text-sm font-medium mb-2">GitHub Authentication Required</p>
+                  <p className="text-figma-text-secondary text-xs mb-3">
+                    Sign in with GitHub to deploy {agent.name} to your repositories
+                  </p>
+                  <Button
+                    onClick={login}
+                    className="w-full bg-white text-black hover:bg-gray-200"
+                  >
+                    Sign in with GitHub
+                  </Button>
+                </div>
+              ) : (
+                <div className="p-3 bg-green-900/20 border border-green-600 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    <SiGithub className="w-4 h-4 text-green-400" />
+                    <p className="text-green-400 text-sm font-medium">
+                      Authenticated as {user?.login}
+                    </p>
+                  </div>
+                  <p className="text-figma-text-secondary text-xs mt-1">
+                    Ready to deploy {agent.name} to your repositories
+                  </p>
+                </div>
+              )}
+
+              <Button
+                onClick={() => onAssignToSWEAgent()}
+                disabled={!isFormValid || (workflowMode === 'breakdown' && selectedTasks.size === 0) || isAssigningTasks || agent.comingSoon}
+                className="w-full bg-white text-black hover:bg-gray-200 border border-gray-300"
+              >
+                {isAssigningTasks ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Assigning...
+                  </>
+                ) : (
+                  workflowMode === 'breakdown' 
+                    ? `Assign Selected Tasks (${selectedTasks.size})` 
+                    : 'Assign One-Shot Implementation'
+                )}
+              </Button>
+            </div>
+          )
         })()}
       </CardContent>
     </Card>
   )
-}    
+}     
