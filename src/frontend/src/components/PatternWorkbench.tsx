@@ -48,7 +48,7 @@ interface TaskBreakdown {
 }
 
 export function PatternWorkbench() {
-  const { accessToken, isAuthenticated } = useAuth()
+  const { accessToken } = useAuth()
   const { patternId } = useParams()
   const mermaidRef = useRef<HTMLDivElement>(null)
 

@@ -39,7 +39,7 @@ interface TaskBreakdown {
 
 export function TemplateWorkbench() {
   const { templateId } = useParams<{ templateId: string }>()
-  const { accessToken, isAuthenticated } = useAuth()
+  const { accessToken } = useAuth()
   const [template, setTemplate] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
   const [customization, setCustomization] = useState<CustomizationRequest>({
@@ -169,7 +169,7 @@ export function TemplateWorkbench() {
         const repoName = repoUrl ? (new URL(repoUrl).pathname.replace(/^\//, '')) : ''
         const copyPayload = [repoUrl, sessionUrl].filter(Boolean).join('\n')
 
-        const t = toast({
+  toast({
           title: repoName ? `Deployed to ${repoName}` : `Assignment started${template?.title ? ` for ${template.title}` : ''}`,
           description: (
             <div className="space-x-3">

@@ -17,7 +17,7 @@ interface Repository {
 }
 
 export function UserDashboard() {
-  const { user, accessToken, isAuthenticated } = useAuth()
+  const { user, accessToken, isAuthenticated, login } = useAuth()
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -132,6 +132,30 @@ export function UserDashboard() {
           <p className="text-figma-text-secondary">
             Sign in with GitHub to deploy AI agents to your repositories
           </p>
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={login}
+              aria-label="Sign in with GitHub"
+              className="group flex items-center gap-2 bg-black text-white px-5 py-2.5 rounded-full text-sm font-medium border border-gray-700 shadow-sm transition-all duration-200 hover:border-white/80 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-white/70 focus:ring-offset-2 focus:ring-offset-figma-black"
+            >
+              {/* GitHub mark */}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="currentColor"
+                stroke="none"
+                aria-hidden="true"
+                focusable="false"
+                className="text-white fill-white block"
+                shapeRendering="geometricPrecision"
+              >
+                <path d="M12 .297C5.37.297 0 5.667 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.016-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.73.083-.73 1.205.085 1.84 1.237 1.84 1.237 1.07 1.835 2.807 1.305 3.492.998.108-.775.42-1.306.763-1.606-2.665-.305-5.466-1.332-5.466-5.93 0-1.31.468-2.382 1.236-3.222-.124-.303-.536-1.524.116-3.176 0 0 1.008-.322 3.3 1.23.957-.266 1.984-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.29-1.552 3.296-1.23 3.296-1.23.654 1.652.242 2.873.118 3.176.77.84 1.235 1.912 1.235 3.222 0 4.61-2.806 5.624-5.479 5.92.43.372.816 1.102.816 2.222 0 1.606-.014 2.902-.014 3.296 0 .322.216.694.826.576C20.565 22.094 24 17.6 24 12.297 24 5.667 18.627.297 12 .297z"/>
+              </svg>
+              Sign in with GitHub
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -196,13 +220,14 @@ export function UserDashboard() {
                         >
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 16 16"
+                            viewBox="0 0 24 24"
                             width="16"
                             height="16"
                             fill="currentColor"
                             aria-hidden="true"
+                            className="inline-block align-[-2px]"
                           >
-                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49C3.73 14.91 3.27 13.73 3.27 13.73c-.36-.91-.88-1.15-.88-1.15-.72-.49.06-.48.06-.48.79.06 1.21.82 1.21.82.71 1.21 1.87.86 2.33.66.07-.51.28-.86.51-1.06-2.66-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3.01-.4c1.02 0 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.49 5.92.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+                            <path d="M12 .297C5.37.297 0 5.667 0 12.297c0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.016-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.09-.745.083-.73.083-.73 1.205.085 1.84 1.237 1.84 1.237 1.07 1.835 2.807 1.305 3.492.998.108-.775.42-1.306.763-1.606-2.665-.305-5.466-1.332-5.466-5.93 0-1.31.468-2.382 1.236-3.222-.124-.303-.536-1.524.116-3.176 0 0 1.008-.322 3.3 1.23.957-.266 1.984-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.29-1.552 3.296-1.23 3.296-1.23.654 1.652.242 2.873.118 3.176.77.84 1.235 1.912 1.235 3.222 0 4.61-2.806 5.624-5.479 5.92.43.372.816 1.102.816 2.222 0 1.606-.014 2.902-.014 3.296 0 .322.216.694.826.576C20.565 22.094 24 17.6 24 12.297 24 5.667 18.627.297 12 .297z"/>
                           </svg>
                         </a>
                       </div>

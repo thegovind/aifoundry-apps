@@ -73,7 +73,7 @@ React-based frontend application for the AIFoundry Apps platform, providing an i
 ## Configuration
 
 ### Environment Variables
-- **VITE_API_BASE_URL**: Backend API endpoint
+- **VITE_API_URL**: Backend API endpoint
 - **VITE_GITHUB_CLIENT_ID**: GitHub OAuth client ID
 - **VITE_AZURE_MAPS_KEY**: Azure Maps integration key
 
