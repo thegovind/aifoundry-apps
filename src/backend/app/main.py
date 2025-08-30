@@ -89,6 +89,7 @@ class TaskBreakdownResponse(BaseModel):
 class SWEAgentRequest(BaseModel):
     agent_id: str
     api_key: str
+    endpoint: Optional[str] = None
     template_id: str
     customization: CustomizationRequest
     task_id: Optional[str] = None
@@ -230,24 +231,100 @@ async def github_oauth_callback(request: Dict[str, str]):
         }
 
 @app.get("/api/user/repositories")
-async def get_user_repositories(authorization: str = Header(...)):
-    """Get user's repositories"""
+async def get_user_repositories(
+    authorization: str = Header(...),
+    limit: int = Query(10, ge=1, le=100, description="Number of most recent repositories to return"),
+    sort: str = Query("updated", description="Sort field: created, updated, pushed, full_name"),
+    direction: str = Query("desc", description="Sort direction: asc or desc"),
+    page: int = Query(1, ge=1, description="Page number for pagination")
+):
+    """Get user's most recent repositories.
+
+    Defaults to the 10 most recently updated repositories. You can adjust the
+    number returned using the `limit` query parameter (max 100).
+    """
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
-    
+
     token = authorization.split(" ")[1]
-    
+
     async with httpx.AsyncClient() as client:
         response = await client.get(
             "https://api.github.com/user/repos",
-            headers={"Authorization": f"token {token}"},
-            params={"sort": "updated", "per_page": 100}
+            headers={
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+            },
+            params={
+                "sort": sort,
+                "direction": direction,
+                "per_page": limit,
+                "page": page,
+            },
         )
-        
+
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail="Failed to fetch repositories")
-        
+
         return response.json()
+
+@app.get("/api/user/repositories/search")
+async def search_user_repositories(
+    q: str = Query(..., min_length=1, description="Search text for repository name/description"),
+    authorization: str = Header(...),
+    limit: int = Query(10, ge=1, le=100, description="Max number of results to return"),
+    sort: str = Query("updated", description="Sort: stars, forks, help-wanted-issues, updated"),
+    order: str = Query("desc", description="Order: asc or desc"),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+):
+    """Search within the authenticated user's repositories by name/description.
+
+    Uses GitHub's search API constrained to the user's login.
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+
+    token = authorization.split(" ")[1]
+
+    async with httpx.AsyncClient() as client:
+        user_resp = await client.get(
+            "https://api.github.com/user",
+            headers={
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+            },
+        )
+        if user_resp.status_code != 200:
+            raise HTTPException(status_code=user_resp.status_code, detail="Failed to fetch user info")
+
+        login = user_resp.json().get("login")
+        if not login:
+            raise HTTPException(status_code=400, detail="Could not determine user login")
+
+        # Search name, description, and README. GitHub search supports in:name,description,readme
+        query = f"{q} user:{login} in:name,description,readme"
+
+        search_resp = await client.get(
+            "https://api.github.com/search/repositories",
+            headers={
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+            },
+            params={
+                "q": query,
+                "per_page": limit,
+                "sort": sort,
+                "order": order,
+                "page": page,
+            },
+        )
+
+        if search_resp.status_code != 200:
+            raise HTTPException(status_code=search_resp.status_code, detail="Failed to search repositories")
+
+        data = search_resp.json()
+        # GitHub returns { total_count, incomplete_results, items: [...] }
+        return data.get("items", [])
 
 @app.get("/api/specs")
 async def get_specs():
@@ -496,7 +573,7 @@ async def assign_spec_to_swe_agent(spec_id: str, request: SWEAgentRequest):
             async with httpx.AsyncClient() as client:
                 devin_api_url = os.getenv("DEVIN_API_BASE_URL", "https://api.devin.ai")
                 response = await client.post(
-                    f"{devin_api_url}/sessions",
+                    f"{devin_api_url}/v1/sessions",
                     json=devin_payload,
                     headers=headers,
                     timeout=30.0
@@ -1057,7 +1134,7 @@ async def generate_task_breakdown(template_id: str, request: CustomizationReques
     print(f"DEBUG: Request data: {request}")
     print(f"DEBUG: Request dict: {request.dict()}")
     try:
-        template = next((t for t in templates_data if t["id"] == template_id), None)
+        template = next((t for t in templates_data if t.id == template_id), None)
         pattern = None
         
         if not template:
@@ -1431,13 +1508,18 @@ async def generate_task_breakdown(template_id: str, request: CustomizationReques
         raise HTTPException(status_code=500, detail=f"Error generating task breakdown: {str(e)}")
 
 @app.post("/api/templates/{template_id}/assign")
-async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
+async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest, authorization: Optional[str] = Header(None)):
     """Assign customization task to SWE agent"""
     try:
-        template = next((t for t in templates_data if t["id"] == template_id), None)
+        logger.debug(f"Looking for template_id: {template_id}")
+        logger.debug(f"templates_data type: {type(templates_data)}")
+        logger.debug(f"First template type: {type(templates_data[0]) if templates_data else 'No templates'}")
+        template = next((t for t in templates_data if t.id == template_id), None)
+        logger.debug(f"Found template: {template}")
         pattern = None
         if not template:
             pattern = next((p for p in patterns_data if p["id"] == template_id), None)
+            logger.debug(f"Found pattern: {pattern}")
             if not pattern:
                 raise HTTPException(status_code=404, detail="Template or pattern not found")
         
@@ -1446,58 +1528,118 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
             item = template if template else pattern
             item_type = "template" if template else "pattern"
             
-            devin_payload = {
-                "prompt": f"""
-                Customize the {item['title']} {item_type} for the following scenario:
-                
-                Customer: {request.customization.company_name}
-                Industry: {request.customization.industry}
-                Use Case: {request.customization.use_case}
-                Brand Theme: {request.customization.brand_theme}
-                Primary Color: {request.customization.primary_color}
-                
-                Customer Scenario: {request.customization.customer_scenario}
-                Additional Requirements: {request.customization.additional_requirements}
-                
-                Use MCP Tools: {request.customization.use_mcp_tools}
-                Use A2A: {request.customization.use_a2a}
-                
-                Repository: {item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')}
-                Mode: {request.mode}
-                
-                {"If MCP Tools is enabled, leverage Model Context Protocol capabilities in your implementation." if request.customization.use_mcp_tools else ""}
-                {"If A2A is enabled, utilize Agent-to-Agent communication patterns in your implementation." if request.customization.use_a2a else ""}
-                """.strip(),
-                "repo_url": item['github_url']
-            }
-            
-            headers = {
-                "Authorization": f"Bearer {request.api_key}",
-                "Content-Type": "application/json"
-            }
-            
+            # Require GitHub auth to fork/copy the template repository into user's account
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(status_code=401, detail="GitHub authentication required to deploy to your repository")
+
+            gh_token = authorization.split(" ")[1]
+
+            # Extract owner/repo from the source template URL
+            repo_url = getattr(item, 'github_url', item.get('github_url', '') if isinstance(item, dict) else '')
+            match = re.search(r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$', repo_url)
+            if not match:
+                raise HTTPException(status_code=400, detail=f"Could not extract owner/repo from URL: {repo_url}")
+            src_owner, src_repo = match.groups()
+
+            # Derive target repo name based on title + company
+            title = getattr(item, 'title', item.get('title', 'template') if isinstance(item, dict) else 'template')
+            safe_name = re.sub(r'[^a-zA-Z0-9-]', '-', title.lower())
+            company = request.customization.company_name or "customer"
+            company_safe = re.sub(r'[^a-zA-Z0-9-]', '-', company.lower()).strip('-') or 'customer'
+            target_repo = f"{safe_name}-{company_safe}"
+
+            async with httpx.AsyncClient() as client:
+                # Identify the authenticated user
+                user_resp = await client.get(
+                    "https://api.github.com/user",
+                    headers={"Authorization": f"token {gh_token}"}
+                )
+                if user_resp.status_code != 200:
+                    raise HTTPException(status_code=user_resp.status_code, detail="Failed to identify GitHub user")
+                user_login = user_resp.json().get("login")
+
+                # Fork the repo into user's account (optionally using a new name)
+                fork_resp = await client.post(
+                    f"https://api.github.com/repos/{src_owner}/{src_repo}/forks",
+                    headers={
+                        "Authorization": f"token {gh_token}",
+                        "Accept": "application/vnd.github.v3+json",
+                    },
+                    json={"name": target_repo}
+                )
+                if fork_resp.status_code not in (201, 202):
+                    raise HTTPException(status_code=fork_resp.status_code, detail=f"Failed to fork repository: {fork_resp.text}")
+
+            # Wait briefly for fork to be ready, then create agents.md using PyGithub service
+            import asyncio
+            await asyncio.sleep(2)
+
+            github_service = GitHubService(github_token=gh_token)
+            agents_content = github_service.generate_agents_md_content(
+                content_type=item_type,
+                item=item.__dict__ if hasattr(item, '__dict__') else item,
+                customization=request.customization.__dict__
+            )
+            file_result = github_service.create_file(
+                repo_name=f"{user_login}/{target_repo}",
+                file_path="agents.md",
+                content=agents_content,
+                commit_message="Add agents.md with customization details"
+            )
+            if not file_result.get("success"):
+                # Don't fail the whole flow; include warning but proceed to Devin
+                logger.warning(f"Failed to create agents.md: {file_result.get('error')}")
+
+            # Prepare Devin session prompt
+            fork_repo_url = f"https://github.com/{user_login}/{target_repo}"
+            prompt = f"""
+You are Devin. Implement the following customization for the {title} {item_type}.
+
+Customer: {request.customization.company_name}
+Industry: {request.customization.industry}
+Use Case: {request.customization.use_case}
+Brand Theme: {request.customization.brand_theme}
+Primary Color: {request.customization.primary_color}
+
+Scenario:
+{request.customization.customer_scenario}
+
+Additional Requirements:
+{request.customization.additional_requirements}
+
+Repository to work in (forked from template):
+{fork_repo_url}
+
+Tasks:
+- Review repository and agents.md for context.
+- Apply customizations and open a pull request.
+- Document changes in the PR description.
+""".strip()
+
+            devin_payload = {"prompt": prompt, "idempotent": True}
+            headers = {"Authorization": f"Bearer {request.api_key}", "Content-Type": "application/json"}
+
             async with httpx.AsyncClient() as client:
                 devin_api_url = os.getenv("DEVIN_API_BASE_URL", "https://api.devin.ai")
                 response = await client.post(
                     f"{devin_api_url}/v1/sessions",
                     json=devin_payload,
                     headers=headers,
-                    timeout=30.0
+                    timeout=30.0,
                 )
-                
-                if response.status_code == 200:
-                    devin_response = response.json()
-                    return {
-                        "status": "success",
-                        "agent": "devin",
-                        "session_id": devin_response.get("session_id"),
-                        "message": "Task assigned to Devin successfully"
-                    }
-                else:
-                    raise HTTPException(
-                        status_code=response.status_code,
-                        detail=f"Devin API error: {response.text}"
-                    )
+
+            if response.status_code == 200:
+                devin_response = response.json()
+                return {
+                    "status": "success",
+                    "agent": "devin",
+                    "session_id": devin_response.get("session_id"),
+                    "session_url": devin_response.get("session_url"),
+                    "repository_url": fork_repo_url,
+                    "message": "Forked template, created agents.md, and started Devin session"
+                }
+            else:
+                raise HTTPException(status_code=response.status_code, detail=f"Devin API error: {response.text}")
                     
         elif request.agent_id == "github-copilot":
             # Use template or pattern data
@@ -1506,7 +1648,7 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
             
             if request.customization.use_mcp_tools:
                 try:
-                    repo_url = item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')
+                    repo_url = getattr(item, 'github_url', item.get('github_url', 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview') if isinstance(item, dict) else 'https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview')
                     match = re.search(r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$', repo_url)
                     if not match:
                         raise ValueError(f"Could not extract owner/repo from URL: {repo_url}")
@@ -1514,7 +1656,7 @@ async def assign_to_swe_agent(template_id: str, request: SWEAgentRequest):
                     owner, repo = match.groups()
                     
                     problem_statement = f"""
-Implement customizations for {item['title']} {item_type}:
+Implement customizations for {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} {item_type}:
 
 Customer: {request.customization.company_name}
 Industry: {request.customization.industry}
@@ -1531,7 +1673,7 @@ Mode: {request.mode}
 Please implement these customizations following best practices and maintaining code quality.
                     """.strip()
                     
-                    pr_title = f"Implement {item['title']} {item_type} customizations for {request.customization.company_name}"
+                    pr_title = f"Implement {getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')} {item_type} customizations for {request.customization.company_name}"
                     
                     auth_method = "oauth"
                     
@@ -1591,11 +1733,85 @@ Please implement these customizations following best practices and maintaining c
             }
             
         elif request.agent_id == "codex-cli":
-            return {
-                "status": "success", 
-                "agent": "codex-cli",
-                "message": "Task assigned to Codex-cli (placeholder implementation)"
-            }
+            from .github_service import GitHubService
+            
+            try:
+                item = template if template else pattern
+                item_type = "template" if template else "pattern"
+                
+                if not item:
+                    spec = next((s for s in specs_data if s["id"] == template_id), None)
+                    if spec:
+                        item = spec
+                        item_type = "spec"
+                    else:
+                        raise HTTPException(status_code=404, detail="Template, pattern, or spec not found")
+                
+                if not item:
+                    raise HTTPException(status_code=404, detail="No item found for processing")
+                
+                github_service = GitHubService()
+                
+                title = getattr(item, 'title', item.get('title', 'Unknown Item') if isinstance(item, dict) else 'Unknown Item')
+                
+                safe_name = re.sub(r'[^a-zA-Z0-9-]', '-', title.lower())
+                repo_name = f"{safe_name}-{request.customization.company_name.lower().replace(' ', '-')}"
+                
+                repo_result = github_service.create_repository(
+                    repo_name=repo_name,
+                    description=f"Azure OpenAI Codex implementation for {title}",
+                    private=False
+                )
+                
+                if not repo_result["success"]:
+                    raise Exception(f"Failed to create repository: {repo_result['error']}")
+                
+                agents_content = github_service.generate_agents_md_content(
+                    content_type=item_type,
+                    item=item.__dict__ if hasattr(item, '__dict__') else item,
+                    customization=request.customization.__dict__
+                )
+                
+                file_result = github_service.create_file(
+                    repo_name=repo_result["repo_name"],
+                    file_path="agents.md",
+                    content=agents_content,
+                    commit_message="Add agents.md with project specification"
+                )
+                
+                if not file_result["success"]:
+                    logger.warning(f"Failed to create agents.md: {file_result['error']}")
+                
+                workflow_content = github_service.generate_github_actions_workflow(
+                    agent_type="codex-cli",
+                    azure_config={"endpoint": request.endpoint, "api_key": "***"}
+                )
+                
+                workflow_result = github_service.create_file(
+                    repo_name=repo_result["repo_name"],
+                    file_path=".github/workflows/codex-automation.yml",
+                    content=workflow_content,
+                    commit_message="Add GitHub Actions workflow for Azure OpenAI Codex automation"
+                )
+                
+                if not workflow_result["success"]:
+                    logger.warning(f"Failed to create workflow: {workflow_result['error']}")
+                
+                return {
+                    "status": "success",
+                    "agent": "codex-cli",
+                    "message": f"Repository created successfully with Azure OpenAI Codex automation setup",
+                    "repository_url": repo_result["repo_url"],
+                    "repository_name": repo_result["repo_name"]
+                }
+                
+            except Exception as e:
+                logger.error(f"Codex-cli assignment error: {e}")
+                return {
+                    "status": "error",
+                    "agent": "codex-cli",
+                    "message": f"Failed to create repository and setup Codex automation: {str(e)}"
+                }
             
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported agent: {request.agent_id}")
