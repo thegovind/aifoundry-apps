@@ -10,9 +10,16 @@ logger = logging.getLogger(__name__)
 
 class GitHubAppClient:
     def __init__(self):
-        self.app_id = os.getenv("GITHUB_APP_ID", "1866067")
-        self.client_id = os.getenv("GITHUB_CLIENT_ID", "Iv23liJ8gCLvAnruP9KV")
-        self.private_key_path = os.getenv("GITHUB_PRIVATE_KEY_PATH", "/home/ubuntu/attachments/c88b6cde-e965-426e-9bbd-3ac7433d9557/aifoundry-app.2025-08-29.private-key.pem")
+        self.app_id = os.getenv("GITHUB_APP_ID")
+        self.client_id = os.getenv("GITHUB_CLIENT_ID")
+        self.private_key_path = os.getenv("GITHUB_PRIVATE_KEY_PATH")
+        
+        if not self.app_id:
+            raise ValueError("GITHUB_APP_ID environment variable is required")
+        if not self.client_id:
+            raise ValueError("GITHUB_CLIENT_ID environment variable is required")
+        if not self.private_key_path:
+            raise ValueError("GITHUB_PRIVATE_KEY_PATH environment variable is required")
         
     def generate_jwt_token(self) -> str:
         """Generate JWT token for GitHub App authentication"""

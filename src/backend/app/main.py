@@ -162,8 +162,14 @@ github_app_client = GitHubAppClient()
 @app.get("/api/auth/github")
 async def github_oauth_login():
     """Initiate GitHub OAuth flow"""
-    client_id = os.getenv("GITHUB_CLIENT_ID", "Iv23liJ8gCLvAnruP9KV")
-    redirect_uri = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:5173/auth/callback")
+    client_id = os.getenv("GITHUB_CLIENT_ID")
+    redirect_uri = os.getenv("GITHUB_REDIRECT_URI")
+    
+    if not client_id:
+        raise HTTPException(status_code=500, detail="GITHUB_CLIENT_ID environment variable is required")
+    if not redirect_uri:
+        raise HTTPException(status_code=500, detail="GITHUB_REDIRECT_URI environment variable is required")
+    
     scope = "repo,workflow,admin:repo_hook"
     
     auth_url = f"https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&scope={scope}"
@@ -176,11 +182,13 @@ async def github_oauth_callback(request: Dict[str, str]):
     if not code:
         raise HTTPException(status_code=400, detail="No authorization code provided")
     
-    client_id = os.getenv("GITHUB_CLIENT_ID", "Iv23liJ8gCLvAnruP9KV")
+    client_id = os.getenv("GITHUB_CLIENT_ID")
     client_secret = os.getenv("GITHUB_CLIENT_SECRET")
     
+    if not client_id:
+        raise HTTPException(status_code=500, detail="GITHUB_CLIENT_ID environment variable is required")
     if not client_secret:
-        raise HTTPException(status_code=500, detail="GitHub client secret not configured")
+        raise HTTPException(status_code=500, detail="GITHUB_CLIENT_SECRET environment variable is required")
     
     async with httpx.AsyncClient() as client:
         token_response = await client.post(

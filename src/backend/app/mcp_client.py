@@ -19,16 +19,16 @@ logger = logging.getLogger(__name__)
 class GitHubMCPClient:
     """Client for interacting with GitHub MCP server and Copilot coding agent."""
     
-    def __init__(self, auth_method: str = "pat", github_token: Optional[str] = None):
+    def __init__(self, auth_method: str = "oauth", github_token: Optional[str] = None):
         """
         Initialize the GitHub MCP client.
         
         Args:
-            auth_method: Authentication method ("pat" or "oauth")
-            github_token: GitHub Personal Access Token or OAuth token
+            auth_method: Authentication method ("oauth")
+            github_token: GitHub OAuth token
         """
         self.auth_method = auth_method
-        self.github_token = github_token or os.getenv("GITHUB_PAT")
+        self.github_token = github_token
         self.server_url = "https://api.githubcopilot.com/mcp/x/copilot"
         self.session: Optional[ClientSession] = None
         
@@ -196,20 +196,17 @@ class GitHubMCPClient:
 
 
 def create_github_mcp_client(
-    auth_method: Optional[str] = None,
+    auth_method: str = "oauth",
     github_token: Optional[str] = None
 ) -> GitHubMCPClient:
     """
     Factory function to create a GitHub MCP client.
     
     Args:
-        auth_method: Authentication method ("pat" or "oauth")
-        github_token: GitHub Personal Access Token or OAuth token
+        auth_method: Authentication method ("oauth")
+        github_token: GitHub OAuth token
         
     Returns:
         GitHubMCPClient instance
     """
-    auth_method = auth_method or os.getenv("MCP_AUTH_METHOD", "pat")
-    github_token = github_token or os.getenv("GITHUB_PAT")
-    
     return GitHubMCPClient(auth_method=auth_method, github_token=github_token)
