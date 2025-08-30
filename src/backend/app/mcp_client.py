@@ -19,21 +19,21 @@ logger = logging.getLogger(__name__)
 class GitHubMCPClient:
     """Client for interacting with GitHub MCP server and Copilot coding agent."""
     
-    def __init__(self, auth_method: str = "pat", github_pat: Optional[str] = None):
+    def __init__(self, auth_method: str = "oauth", github_token: Optional[str] = None):
         """
         Initialize the GitHub MCP client.
         
         Args:
-            auth_method: Authentication method ("pat" or "oauth")
-            github_pat: GitHub Personal Access Token (required for PAT auth)
+            auth_method: Authentication method ("oauth")
+            github_token: GitHub OAuth token
         """
         self.auth_method = auth_method
-        self.github_pat = github_pat or os.getenv("GITHUB_PAT")
+        self.github_token = github_token
         self.server_url = "https://api.githubcopilot.com/mcp/x/copilot"
         self.session: Optional[ClientSession] = None
         
-        if self.auth_method == "pat" and not self.github_pat:
-            raise ValueError("GitHub PAT is required for PAT authentication")
+        if not self.github_token:
+            raise ValueError("GitHub token is required for authentication")
     
     async def connect(self) -> bool:
         """
@@ -45,7 +45,7 @@ class GitHubMCPClient:
         try:
             if self.auth_method == "pat":
                 headers = {
-                    "Authorization": f"Bearer {self.github_pat}",
+                    "Authorization": f"Bearer {self.github_token}",
                     "Content-Type": "application/json",
                     "X-MCP-Toolsets": "copilot"
                 }
@@ -84,7 +84,7 @@ class GitHubMCPClient:
         try:
             if self.auth_method == "pat":
                 headers = {
-                    "Authorization": f"Bearer {self.github_pat}",
+                    "Authorization": f"Bearer {self.github_token}",
                     "Content-Type": "application/json",
                     "X-MCP-Toolsets": "copilot"
                 }
@@ -148,7 +148,7 @@ class GitHubMCPClient:
             
             if self.auth_method == "pat":
                 headers = {
-                    "Authorization": f"Bearer {self.github_pat}",
+                    "Authorization": f"Bearer {self.github_token}",
                     "Content-Type": "application/json",
                     "X-MCP-Toolsets": "copilot"
                 }
@@ -196,20 +196,17 @@ class GitHubMCPClient:
 
 
 def create_github_mcp_client(
-    auth_method: Optional[str] = None,
-    github_pat: Optional[str] = None
+    auth_method: str = "oauth",
+    github_token: Optional[str] = None
 ) -> GitHubMCPClient:
     """
     Factory function to create a GitHub MCP client.
     
     Args:
-        auth_method: Authentication method ("pat" or "oauth")
-        github_pat: GitHub Personal Access Token
+        auth_method: Authentication method ("oauth")
+        github_token: GitHub OAuth token
         
     Returns:
         GitHubMCPClient instance
     """
-    auth_method = auth_method or os.getenv("MCP_AUTH_METHOD", "pat")
-    github_pat = github_pat or os.getenv("GITHUB_PAT")
-    
-    return GitHubMCPClient(auth_method=auth_method, github_pat=github_pat)
+    return GitHubMCPClient(auth_method=auth_method, github_token=github_token)

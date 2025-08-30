@@ -803,3 +803,5 @@ tramp
 infra/repomix-output.xml
 
 deployment/
+keys/
+*.pem

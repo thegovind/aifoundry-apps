@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
 import { Header } from './components/Header'
 import { LandingPage } from './components/LandingPage'
 import { PatternsPage } from './components/PatternsPage'
@@ -8,6 +9,8 @@ import { SpecsPage } from './components/SpecsPage'
 import { PatternWorkbench } from './components/PatternWorkbench'
 import { TemplateWorkbench } from './components/TemplateWorkbench'
 import { SpecWorkbench } from './components/SpecWorkbench'
+import { AuthCallback } from './components/AuthCallback'
+import { UserDashboard } from './components/UserDashboard'
 import { Footer } from './components/Footer'
 
 export interface Template {
@@ -110,30 +113,34 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-figma-black font-aptos">
-      <Header />
-      <main>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/patterns" element={<PatternsPage />} />
-          <Route path="/pattern/:patternId" element={<PatternWorkbench />} />
-          <Route path="/templates" element={
-            <TemplatesPage 
-              templates={templates}
-              featuredTemplates={featuredTemplates}
-              filterOptions={filterOptions}
-              filters={filters}
-              onFiltersChange={updateFilters}
-              loading={loading}
-            />
-          } />
-          <Route path="/template/:templateId" element={<TemplateWorkbench />} />
-          <Route path="/specs" element={<SpecsPage />} />
-          <Route path="/spec/:specId" element={<SpecWorkbench />} />
-        </Routes>
-      </main>
-      <Footer />
-    </div>
+    <AuthProvider>
+      <div className="min-h-screen bg-figma-black font-aptos">
+        <Header />
+        <main>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/patterns" element={<PatternsPage />} />
+            <Route path="/pattern/:patternId" element={<PatternWorkbench />} />
+            <Route path="/templates" element={
+              <TemplatesPage 
+                templates={templates}
+                featuredTemplates={featuredTemplates}
+                filterOptions={filterOptions}
+                filters={filters}
+                onFiltersChange={updateFilters}
+                loading={loading}
+              />
+            } />
+            <Route path="/template/:templateId" element={<TemplateWorkbench />} />
+            <Route path="/specs" element={<SpecsPage />} />
+            <Route path="/spec/:specId" element={<SpecWorkbench />} />
+            <Route path="/auth/github/callback" element={<AuthCallback />} />
+            <Route path="/dashboard" element={<UserDashboard />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </AuthProvider>
   )
 }
 

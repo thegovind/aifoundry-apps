@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
@@ -12,6 +12,8 @@ from datetime import datetime
 from azure.ai.projects import AIProjectClient
 from azure.core.credentials import AzureKeyCredential
 from .mcp_client import create_github_mcp_client
+from .github_app import GitHubAppClient
+from .github_app import GitHubAppClient
 
 # Load environment variables
 from dotenv import load_dotenv
@@ -154,6 +156,98 @@ def save_specs(specs: List[Spec]):
 
 specs_data: List[Spec] = load_specs()
 spec_by_id: Dict[str, Spec] = {s.id: s for s in specs_data}
+
+github_app_client = GitHubAppClient()
+
+@app.get("/api/auth/github")
+async def github_oauth_login():
+    """Initiate GitHub OAuth flow"""
+    client_id = os.getenv("GITHUB_CLIENT_ID")
+    redirect_uri = os.getenv("GITHUB_REDIRECT_URI")
+    
+    if not client_id:
+        raise HTTPException(status_code=500, detail="GITHUB_CLIENT_ID environment variable is required")
+    if not redirect_uri:
+        raise HTTPException(status_code=500, detail="GITHUB_REDIRECT_URI environment variable is required")
+    
+    scope = "repo,workflow,admin:repo_hook"
+    
+    auth_url = f"https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&scope={scope}"
+    return {"auth_url": auth_url}
+
+@app.post("/api/auth/github/callback")
+async def github_oauth_callback(request: Dict[str, str]):
+    """Handle GitHub OAuth callback"""
+    code = request.get("code")
+    if not code:
+        raise HTTPException(status_code=400, detail="No authorization code provided")
+    
+    client_id = os.getenv("GITHUB_CLIENT_ID")
+    client_secret = os.getenv("GITHUB_CLIENT_SECRET")
+    
+    if not client_id:
+        raise HTTPException(status_code=500, detail="GITHUB_CLIENT_ID environment variable is required")
+    if not client_secret:
+        raise HTTPException(status_code=500, detail="GITHUB_CLIENT_SECRET environment variable is required")
+    
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://github.com/login/oauth/access_token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code
+            },
+            headers={"Accept": "application/json"}
+        )
+        
+        if token_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to exchange code for token")
+        
+        token_data = token_response.json()
+        access_token = token_data.get("access_token")
+        
+        if not access_token:
+            raise HTTPException(status_code=400, detail="No access token received")
+        
+        user_response = await client.get(
+            "https://api.github.com/user",
+            headers={"Authorization": f"token {access_token}"}
+        )
+        
+        if user_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get user information")
+        
+        user_data = user_response.json()
+        
+        return {
+            "access_token": access_token,
+            "user": {
+                "login": user_data["login"],
+                "name": user_data.get("name"),
+                "avatar_url": user_data["avatar_url"]
+            }
+        }
+
+@app.get("/api/user/repositories")
+async def get_user_repositories(authorization: str = Header(...)):
+    """Get user's repositories"""
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+    
+    token = authorization.split(" ")[1]
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://api.github.com/user/repos",
+            headers={"Authorization": f"token {token}"},
+            params={"sort": "updated", "per_page": 100}
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail="Failed to fetch repositories")
+        
+        return response.json()
 
 @app.get("/api/specs")
 async def get_specs():
@@ -1439,7 +1533,12 @@ Please implement these customizations following best practices and maintaining c
                     
                     pr_title = f"Implement {item['title']} {item_type} customizations for {request.customization.company_name}"
                     
-                    mcp_client = create_github_mcp_client()
+                    auth_method = "oauth"
+                    
+                    mcp_client = create_github_mcp_client(
+                        auth_method=auth_method,
+                        github_token=request.api_key
+                    )
                     result = await mcp_client.create_pull_request_with_copilot(
                         owner=owner,
                         repo=repo,
@@ -1505,3 +1604,130 @@ Please implement these customizations following best practices and maintaining c
         raise HTTPException(status_code=500, detail=f"Network error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error assigning to SWE agent: {str(e)}")
+
+@app.post("/api/templates/{template_id}/deploy")
+async def deploy_template_to_github(template_id: str, request: dict):
+    """Deploy template to user's GitHub repository with agent configuration"""
+    try:
+        template = next((t for t in templates_data if t["id"] == template_id), None)
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+        
+        access_token = request.get("access_token")
+        target_repo = request.get("target_repo")
+        agent_config = request.get("agent_config", {})
+        
+        if not access_token or not target_repo:
+            raise HTTPException(status_code=400, detail="Missing access_token or target_repo")
+        
+        import re
+        match = re.search(r'github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$', template["github_url"])
+        if not match:
+            raise HTTPException(status_code=400, detail="Invalid template GitHub URL")
+        
+        template_owner, template_repo = match.groups()
+        
+        async with httpx.AsyncClient() as client:
+            fork_response = await client.post(
+                f"https://api.github.com/repos/{template_owner}/{template_repo}/forks",
+                headers={
+                    "Authorization": f"token {access_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                },
+                json={"name": target_repo}
+            )
+            
+            if fork_response.status_code not in [202, 201]:
+                raise HTTPException(status_code=fork_response.status_code, detail=f"Failed to fork repository: {fork_response.text}")
+            
+            fork_data = fork_response.json()
+            
+            user_response = await client.get(
+                "https://api.github.com/user",
+                headers={"Authorization": f"token {access_token}"}
+            )
+            user_data = user_response.json()
+            user_login = user_data["login"]
+            
+            import asyncio
+            await asyncio.sleep(2)
+            
+            from datetime import datetime
+            agent_config_content = {
+                "template_id": template_id,
+                "template_name": template["title"],
+                "agent_config": agent_config,
+                "deployment_date": datetime.now().isoformat(),
+                "source_repo": template["github_url"]
+            }
+            
+            import base64
+            import json
+            config_response = await client.put(
+                f"https://api.github.com/repos/{user_login}/{target_repo}/contents/aifoundry-agents.json",
+                headers={
+                    "Authorization": f"token {access_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                },
+                json={
+                    "message": "Add AIfoundry agent configuration",
+                    "content": base64.b64encode(
+                        json.dumps(agent_config_content, indent=2).encode()
+                    ).decode()
+                }
+            )
+            
+            workflow_content = f"""name: AIfoundry Agent Workflow
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  agent-execution:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Agent Environment
+      run: |
+        echo "Setting up agent environment for {template['title']}"
+        echo "Agent config: {agent_config.get('agent_type', 'default')}"
+    
+    - name: Execute Agent Tasks
+      run: |
+        echo "Executing agent tasks..."
+        
+    - name: Report Results
+      run: |
+        echo "Agent execution completed"
+"""
+            
+            workflow_response = await client.put(
+                f"https://api.github.com/repos/{user_login}/{target_repo}/contents/.github/workflows/aifoundry-agent.yml",
+                headers={
+                    "Authorization": f"token {access_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                },
+                json={
+                    "message": "Add AIfoundry agent workflow",
+                    "content": base64.b64encode(workflow_content.encode()).decode()
+                }
+            )
+            
+            return {
+                "status": "success",
+                "message": f"Successfully deployed {template['title']} to {user_login}/{target_repo}",
+                "repository": {
+                    "name": target_repo,
+                    "full_name": f"{user_login}/{target_repo}",
+                    "url": fork_data["html_url"]
+                },
+                "agent_config": agent_config_content
+            }
+            
+    except Exception as e:
+        logger.error(f"Error deploying template to GitHub: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
