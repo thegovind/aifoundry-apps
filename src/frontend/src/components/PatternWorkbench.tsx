@@ -386,15 +386,14 @@ export function PatternWorkbench() {
   const assignToSWEAgent = async (taskId?: string) => {
     const { accessToken } = useAuth()
     
-    const authToken = selectedAgent === 'github-copilot' ? accessToken : apiKey
-    if (!selectedAgent || !authToken) return
+    if (!selectedAgent || !accessToken) return
 
     setIsAssigningTasks(true)
     try {
       const mappedCustomization = mapPatternToCustomizationRequest()
       const payload = {
         agent_id: selectedAgent,
-        api_key: authToken,
+        api_key: accessToken,
         template_id: patternId,
         customization: mappedCustomization,
         ...(taskId ? { task_id: taskId } : { 

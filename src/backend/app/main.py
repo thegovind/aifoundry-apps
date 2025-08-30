@@ -1525,7 +1525,7 @@ Please implement these customizations following best practices and maintaining c
                     
                     pr_title = f"Implement {item['title']} {item_type} customizations for {request.customization.company_name}"
                     
-                    auth_method = "oauth" if request.api_key and len(request.api_key) > 40 else "pat"
+                    auth_method = "oauth"
                     
                     mcp_client = create_github_mcp_client(
                         auth_method=auth_method,
