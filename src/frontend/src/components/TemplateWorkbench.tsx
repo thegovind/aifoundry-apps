@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { ArrowLeft, Settings, GitBranch, Loader2, X } from 'lucide-react'
+import { ArrowLeft, Settings, GitBranch, Loader2, X, ExternalLink } from 'lucide-react'
+import { Progress } from './ui/progress'
 import { Button } from './ui/button'
-import { toast } from '@/hooks/use-toast'
+import { useToast } from '../hooks/use-toast'
 import { ToastAction } from './ui/toast'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Input } from './ui/input'
@@ -25,6 +26,8 @@ interface CustomizationRequest {
   additional_requirements: string
   use_mcp_tools: boolean
   use_a2a: boolean
+  owner?: string
+  repo?: string
 }
 
 interface TaskBreakdown {
@@ -39,7 +42,7 @@ interface TaskBreakdown {
 
 export function TemplateWorkbench() {
   const { templateId } = useParams<{ templateId: string }>()
-  const { accessToken } = useAuth()
+  const { accessToken, user } = useAuth()
   const [template, setTemplate] = useState<Template | null>(null)
   const [loading, setLoading] = useState(true)
   const [customization, setCustomization] = useState<CustomizationRequest>({
@@ -51,12 +54,17 @@ export function TemplateWorkbench() {
     use_case: '',
     additional_requirements: '',
     use_mcp_tools: false,
-    use_a2a: false
+    use_a2a: false,
+    owner: '',
+    repo: ''
   })
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [apiKey, setApiKey] = useState<string>('')
   const [endpoint, setEndpoint] = useState<string>('')
+  const [githubPat, setGithubPat] = useState<string>('')
+  const [preferImport, setPreferImport] = useState<boolean>(false)
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false)
   const [taskBreakdown, setTaskBreakdown] = useState<TaskBreakdown[]>([])
   const [isGeneratingTasks, setIsGeneratingTasks] = useState(false)
   const [isAssigningTasks, setIsAssigningTasks] = useState(false)
@@ -64,7 +72,14 @@ export function TemplateWorkbench() {
   const [assignmentResponse, setAssignmentResponse] = useState<any>(null)
   const [assignmentPhase, setAssignmentPhase] = useState<'idle' | 'fork' | 'write' | 'agent' | 'done'>('idle')
   const [banner, setBanner] = useState<{ repoUrl?: string; sessionUrl?: string; agent?: string } | null>(null)
+  const [progressLog, setProgressLog] = useState<string[]>([])
+  const [progressJob, setProgressJob] = useState<string | null>(null)
+  const [progressPercent, setProgressPercent] = useState<number | undefined>(undefined)
+  const [lastProgressAt, setLastProgressAt] = useState<number | null>(null)
+  const [timedOut, setTimedOut] = useState<boolean>(false)
+  const [manualForkInfo, setManualForkInfo] = useState<null | { fork_url: string; suggested_owner?: string; suggested_repo?: string }>(null)
   const responseRef = useRef<HTMLDivElement | null>(null)
+  const { toast } = useToast()
 
   const apiUrl = import.meta.env.VITE_API_URL
 
@@ -132,10 +147,58 @@ export function TemplateWorkbench() {
 
     setIsAssigningTasks(true)
     setAssignmentPhase('fork')
+    setShowAdvanced(false)
+    setManualForkInfo(null)
+    setTimedOut(false)
+    setProgressPercent(undefined)
+    setLastProgressAt(Date.now())
     try {
+      // Start progress stream
+      const jobId = (window.crypto && 'randomUUID' in crypto)
+        ? (crypto as any).randomUUID()
+        : Math.random().toString(36).slice(2)
+      ;(window as any)._currentProgressJob = jobId
+      const es = new EventSource(`${apiUrl}/api/progress/${jobId}/stream`)
+      setProgressJob(jobId)
+      const esRefLocal = es
+      const mark = () => setLastProgressAt(Date.now())
+      const bump = (p: number) => setProgressPercent(prev => Math.max(prev ?? 0, p))
+      es.addEventListener('fork-start', () => { setProgressLog(prev => [...prev, 'Forking repository…']); mark(); bump(10) })
+      es.addEventListener('fork-ok', () => { setProgressLog(prev => [...prev, 'Fork complete']); mark(); bump(30) })
+      es.addEventListener('create-start', () => { setProgressLog(prev => [...prev, 'Creating repository…']); mark(); bump(20) })
+      es.addEventListener('populate-start', () => { setProgressLog(prev => [...prev, 'Populating repository contents…']); mark(); bump(40) })
+      es.addEventListener('import-ok', () => { setProgressLog(prev => [...prev, 'Import completed']); mark(); bump(60) })
+      es.addEventListener('copy-ok', () => { setProgressLog(prev => [...prev, 'Copy completed']); mark(); bump(70) })
+      es.addEventListener('copy-progress', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse((e as any).data)
+          const { copied, total } = data || {}
+          if (copied) {
+            setProgressLog(prev => [...prev, `Copied ${copied}${total ? ` / ${total}` : ''} files…`])
+            if (total) setProgressPercent(Math.max(70, Math.min(90, Math.round((copied / total) * 90))))
+            mark()
+          }
+        } catch {}
+      })
+      es.addEventListener('write-agents', () => { setAssignmentPhase('write'); bump(85); mark() })
+      es.addEventListener('agent-start', () => { setAssignmentPhase('agent'); bump(90); mark() })
+      es.addEventListener('done', () => { setAssignmentPhase('done'); setProgressPercent(100); mark(); esRefLocal.close() })
+
+      // Timeout watcher (e.g., 60s of no progress)
+      const interval = window.setInterval(() => {
+        if (!lastProgressAt) return
+        if (Date.now() - (lastProgressAt || 0) > 60000 && !timedOut) {
+          setTimedOut(true)
+          try { esRefLocal.close() } catch {}
+          window.clearInterval(interval)
+        }
+      }, 5000)
       const payload = {
         agent_id: selectedAgent,
         api_key: (selectedAgent === 'codex-cli' || selectedAgent === 'devin') ? apiKey : accessToken,
+        github_token: accessToken || undefined,
+        github_pat: githubPat || undefined,
+        prefer_import: preferImport,
         endpoint: endpointParam || endpoint,
         template_id: templateId,
         customization,
@@ -148,7 +211,11 @@ export function TemplateWorkbench() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+          'X-Progress-Job': jobId,
+          // Avoid sending Devin/Codex API key as Authorization header accidentally
+          ...(accessToken && selectedAgent !== 'devin' && selectedAgent !== 'codex-cli' 
+            ? { 'Authorization': `Bearer ${accessToken}` } 
+            : {})
         },
         body: JSON.stringify(payload)
       })
@@ -158,59 +225,108 @@ export function TemplateWorkbench() {
         const result = await response.json()
         setAssignmentPhase('done')
         console.log('Assignment successful:', result)
+        if (result?.status === 'partial_success' && result?.action === 'manual_fork_required') {
+          setManualForkInfo({ fork_url: result.fork_url, suggested_owner: result.suggested_owner, suggested_repo: result.suggested_repo })
+          setIsAssigningTasks(false)
+          setTimedOut(true)
+          setAssignmentResponse(result)
+          return
+        }
         
         // Store the response for display
         setAssignmentResponse(result)
 
-        // Toast with quick links
+        if (result.agent === 'github-copilot' && result.status === 'success') {
+          toast({
+            title: "GitHub Copilot Assignment Successful",
+            description: (
+              <div className="space-y-2">
+                <p>Repository forked and issue created successfully!</p>
+                <div className="flex flex-col space-y-1">
+                  <a 
+                    href={result.repository_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    View Forked Repository
+                  </a>
+                  <a 
+                    href={result.issue_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    View Created Issue #{result.issue_number}
+                  </a>
+                  <a 
+                    href={result.setup_instructions} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-orange-400 hover:text-orange-300 underline"
+                  >
+                    Enable GitHub Copilot Coding Agent
+                  </a>
+                </div>
+              </div>
+            ),
+            duration: 10000,
+          })
+        } else {
+          // Toast with quick links for other agents
+          const repoUrl = result.repository_url as string | undefined
+          const sessionUrl = (result.session_url || (result.session_id ? `https://app.devin.ai/sessions/${result.session_id}` : '')) as string | undefined
+          const agentName = (result.agent || selectedAgent || 'agent') as string
+          const repoName = repoUrl ? (new URL(repoUrl).pathname.replace(/^\//, '')) : ''
+          const copyPayload = [repoUrl, sessionUrl].filter(Boolean).join('\n')
+
+          toast({
+            title: repoName ? `Deployed to ${repoName}` : `Assignment started${template?.title ? ` for ${template.title}` : ''}`,
+            description: (
+              <div className="space-x-3">
+                <span className="mr-2 text-figma-text-secondary">Agent: {agentName}</span>
+                {result.repository_url && (
+                  <a
+                    className="underline"
+                    href={result.repository_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open Repo
+                  </a>
+                )}
+                {(result.session_url || result.session_id) && (
+                  <a
+                    className="underline"
+                    href={result.session_url || `https://app.devin.ai/sessions/${result.session_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open Devin Session
+                  </a>
+                )}
+              </div>
+            ),
+            action: (
+              <ToastAction
+                altText="Copy links"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(copyPayload)
+                    toast({ title: 'Links copied' })
+                  } catch {}
+                }}
+              >
+                Copy Links
+              </ToastAction>
+            ),
+          })
+        }
+        
+        // Set persistent banner for all agents
         const repoUrl = result.repository_url as string | undefined
         const sessionUrl = (result.session_url || (result.session_id ? `https://app.devin.ai/sessions/${result.session_id}` : '')) as string | undefined
         const agentName = (result.agent || selectedAgent || 'agent') as string
-        const repoName = repoUrl ? (new URL(repoUrl).pathname.replace(/^\//, '')) : ''
-        const copyPayload = [repoUrl, sessionUrl].filter(Boolean).join('\n')
-
-  toast({
-          title: repoName ? `Deployed to ${repoName}` : `Assignment started${template?.title ? ` for ${template.title}` : ''}`,
-          description: (
-            <div className="space-x-3">
-              <span className="mr-2 text-figma-text-secondary">Agent: {agentName}</span>
-              {result.repository_url && (
-                <a
-                  className="underline"
-                  href={result.repository_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Open Repo
-                </a>
-              )}
-              {(result.session_url || result.session_id) && (
-                <a
-                  className="underline"
-                  href={result.session_url || `https://app.devin.ai/sessions/${result.session_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Open Devin Session
-                </a>
-              )}
-            </div>
-          ),
-          action: (
-            <ToastAction
-              altText="Copy links"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(copyPayload)
-                  toast({ title: 'Links copied' })
-                } catch {}
-              }}
-            >
-              Copy Links
-            </ToastAction>
-          ),
-        })
-        // Set persistent banner
         setBanner({ repoUrl, sessionUrl, agent: agentName })
         
         if (!taskId && workflowMode === 'breakdown') {
@@ -219,6 +335,12 @@ export function TemplateWorkbench() {
       } else {
         const error = await response.json()
         console.error('Assignment failed:', error)
+        // If backend returns partial_success in an error code (defensive)
+        if (error?.action === 'manual_fork_required' && error?.fork_url) {
+          setManualForkInfo({ fork_url: error.fork_url, suggested_owner: error.suggested_owner, suggested_repo: error.suggested_repo })
+          setIsAssigningTasks(false)
+          setTimedOut(true)
+        }
         
         // Store the error response for display
         setAssignmentResponse({
@@ -261,6 +383,61 @@ export function TemplateWorkbench() {
     } finally {
       setIsAssigningTasks(false)
       setAssignmentPhase('idle')
+    }
+  }
+
+  const resumeAfterManualFork = async () => {
+    if (!apiKey) return
+    const jobId = (window.crypto && 'randomUUID' in crypto)
+      ? (crypto as any).randomUUID()
+      : Math.random().toString(36).slice(2)
+    setIsAssigningTasks(true)
+    setTimedOut(false)
+    setProgressLog([])
+    setProgressPercent(undefined)
+    setAssignmentPhase('write')
+    setProgressJob(jobId)
+    try {
+      const es = new EventSource(`${apiUrl}/api/progress/${jobId}/stream`)
+      es.addEventListener('write-agents', () => setAssignmentPhase('write'))
+      es.addEventListener('agent-start', () => setAssignmentPhase('agent'))
+      es.addEventListener('done', () => { setAssignmentPhase('done'); es.close() })
+    } catch {}
+    const payload = {
+      agent_id: 'devin',
+      api_key: apiKey,
+      github_token: accessToken || undefined,
+      github_pat: githubPat || undefined,
+      endpoint,
+      template_id: templateId,
+      customization,
+      mode: workflowMode === 'oneshot' ? 'oneshot' : 'breakdown'
+    }
+    try {
+      const response = await fetch(`${apiUrl}/api/templates/${templateId}/resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Progress-Job': jobId,
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        },
+        body: JSON.stringify(payload)
+      })
+      const result = await response.json()
+      if (!response.ok) {
+        throw new Error(result?.detail || 'Resume failed')
+      }
+      setAssignmentResponse(result)
+      setIsAssigningTasks(false)
+      setTimedOut(false)
+      setManualForkInfo(null)
+      const repoUrl = result.repository_url as string | undefined
+      const sessionUrl = (result.session_url || (result.session_id ? `https://app.devin.ai/sessions/${result.session_id}` : '')) as string | undefined
+      setBanner({ repoUrl, sessionUrl, agent: 'devin' })
+      toast({ title: 'Resumed successfully', description: 'Started Devin session with your forked repo' })
+    } catch (e) {
+      toast({ title: 'Resume failed', description: String(e), variant: 'destructive' as any })
+      setIsAssigningTasks(false)
     }
   }
 
@@ -311,7 +488,21 @@ export function TemplateWorkbench() {
         <div className="flex items-center space-x-4 mb-6">
           <div className="text-4xl">{template.icon}</div>
           <div>
-            <h1 className="text-3xl font-bold text-white">{template.title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold text-white">{template.title}</h1>
+              {template.github_url && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-figma-text-primary hover:text-white hover:bg-figma-light-gray p-1 h-7 w-7"
+                  asChild
+                >
+                  <a href={template.github_url} target="_blank" rel="noopener noreferrer" aria-label="Open GitHub repository">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              )}
+            </div>
             <p className="text-gray-400 mt-2">{template.description}</p>
             <div className="flex items-center space-x-2 mt-3">
               <Badge variant="outline" className="bg-gray-700 text-gray-300 border-gray-600">
@@ -454,6 +645,29 @@ export function TemplateWorkbench() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                <div>
+                  <Label htmlFor="targetOwner" className="text-white">Target Owner (user or org)</Label>
+                  <Input
+                    id="targetOwner"
+                    placeholder="e.g. thegovind or my-org"
+                    value={customization.owner || ''}
+                    onChange={(e) => setCustomization(prev => ({ ...prev, owner: e.target.value }))}
+                    className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="targetRepo" className="text-white">Target Repo Name</Label>
+                  <Input
+                    id="targetRepo"
+                    placeholder="Optional; will default based on template"
+                    value={customization.repo || ''}
+                    onChange={(e) => setCustomization(prev => ({ ...prev, repo: e.target.value }))}
+                    className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                  />
+                </div>
+              </div>
+
               {customization.use_mcp_tools && (
                 <div className="mt-4 p-4 bg-blue-900/30 border border-blue-700 rounded-md">
                   <p className="text-blue-200 text-sm mb-2">
@@ -588,6 +802,85 @@ export function TemplateWorkbench() {
             validationField="customer_scenario"
           />
 
+          {/* Advanced GitHub options toggle */}
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="text-sm underline text-figma-text-secondary hover:text-white"
+            >
+              {showAdvanced ? 'Hide Advanced GitHub Options' : 'Show Advanced GitHub Options'}
+            </button>
+          </div>
+
+          {showAdvanced && (
+            <Card className="bg-figma-medium-gray border-figma-light-gray">
+              <CardHeader>
+                <CardTitle className="text-figma-text-primary">Advanced GitHub Options</CardTitle>
+                <CardDescription className="text-figma-text-secondary">
+                  If authenticated but API calls fail with 403, provide a classic Personal Access Token or choose import instead of fork.
+                  <br />
+                  Token scopes: <span className="text-white">public_repo</span> (for public repos). Use <span className="text-white">repo</span> if you need private repos or Actions secrets later.
+                  {' '}<a
+                    href="https://github.com/settings/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-blue-400 hover:text-blue-300 ml-1"
+                  >Get a GitHub token</a>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label htmlFor="githubPat" className="text-white">GitHub Personal Access Token (optional)</Label>
+                  <Input
+                    id="githubPat"
+                    type="password"
+                    placeholder="github_pat_… or ghp_… (public_repo or repo scope)"
+                    value={githubPat}
+                    onChange={(e) => setGithubPat(e.target.value)}
+                    className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={async () => {
+                      const token = githubPat || accessToken
+                      if (!token) return
+                      try {
+                        const r = await fetch(`${apiUrl}/api/github/test-token`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ token })
+                        })
+                        const data = await r.json()
+                        if (data.ok) {
+                          toast({ title: `GitHub token OK for ${data.login}`, description: `Scopes: ${(data.scopes || []).join(', ') || 'none'}` })
+                        } else {
+                          toast({ title: 'Token check failed', description: data.error || String(data.status), variant: 'destructive' as any })
+                        }
+                      } catch (e: any) {
+                        toast({ title: 'Token check error', description: String(e), variant: 'destructive' as any })
+                      }
+                    }}
+                  >
+                    Test GitHub Token
+                  </Button>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="preferImport"
+                    checked={preferImport}
+                    onCheckedChange={(checked) => setPreferImport(!!checked)}
+                  />
+                  <Label htmlFor="preferImport" className="text-white text-sm">Prefer Import (copy) instead of Fork</Label>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {isAssigningTasks && (
             <Card className="bg-figma-medium-gray border-figma-light-gray">
               <CardHeader>
@@ -595,19 +888,80 @@ export function TemplateWorkbench() {
                   <Settings className="h-5 w-5 mr-2" />
                   Deployment In Progress
                 </CardTitle>
-                <CardDescription className="text-figma-text-secondary">Forking repo, adding agents.md, and starting agent…</CardDescription>
+                <CardDescription className="text-figma-text-secondary">Forking/copying repo, adding agents.md, and starting agent…</CardDescription>
               </CardHeader>
-              <CardContent ref={responseRef}>
-                <ul className="text-sm text-figma-text-secondary space-y-2">
-                  <li className={`${assignmentPhase !== 'idle' ? 'text-white' : ''}`}>1. Fork template into your GitHub</li>
-                  <li className={`${assignmentPhase === 'write' || assignmentPhase === 'agent' || assignmentPhase === 'done' ? 'text-white' : ''}`}>2. Add agents.md with customization</li>
-                  <li className={`${assignmentPhase === 'agent' || assignmentPhase === 'done' ? 'text-white' : ''}`}>3. Start selected coding agent</li>
+          <CardContent ref={responseRef}>
+            {/* Progress bar */}
+            <div className="mb-3">
+              <Progress value={progressPercent} />
+            </div>
+            <ul className="text-sm text-figma-text-secondary space-y-2">
+              <li className={`${assignmentPhase !== 'idle' ? 'text-white' : ''}`}>1. Fork template into your GitHub</li>
+              <li className={`${assignmentPhase === 'write' || assignmentPhase === 'agent' || assignmentPhase === 'done' ? 'text-white' : ''}`}>2. Add agents.md with customization</li>
+              <li className={`${assignmentPhase === 'agent' || assignmentPhase === 'done' ? 'text-white' : ''}`}>3. Start selected coding agent</li>
+            </ul>
+            {progressLog.length > 0 && (
+              <div className="mt-3 p-3 bg-figma-dark-gray rounded border border-figma-light-gray max-h-48 overflow-auto">
+                <p className="text-xs text-figma-text-secondary mb-1">Live progress</p>
+                <ul className="text-xs text-figma-text-primary space-y-1">
+                  {progressLog.map((line, idx) => (
+                    <li key={idx}>{line}</li>
+                  ))}
                 </ul>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
+            <div className="mt-3 flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="text-xs"
+                onClick={async () => {
+                  try {
+                    if (progressJob) await fetch(`${apiUrl}/api/progress/${progressJob}/cancel`, { method: 'POST' })
+                  } catch {}
+                  setIsAssigningTasks(false)
+                  setAssignmentPhase('idle')
+                  setProgressLog(prev => [...prev, 'Cancelled'])
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          {assignmentResponse && (
+      {timedOut && (
+        <Card className="bg-figma-medium-gray border-figma-light-gray">
+          <CardHeader>
+            <CardTitle className="text-figma-text-primary">GitHub rate limit or timeout</CardTitle>
+            <CardDescription className="text-figma-text-secondary">Please fork the template manually, then click Continue to resume.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {manualForkInfo?.fork_url && (
+              <a className="underline text-blue-400" href={manualForkInfo.fork_url} target="_blank" rel="noopener noreferrer">Fork on GitHub</a>
+            )}
+            {!manualForkInfo?.fork_url && template.github_url && (
+              <a className="underline text-blue-400" href={`${template.github_url}/fork`} target="_blank" rel="noopener noreferrer">Fork on GitHub</a>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="owner" className="text-white">Your GitHub owner/org</Label>
+                <Input id="owner" value={customization.owner} onChange={(e) => setCustomization(prev => ({ ...prev, owner: e.target.value }))} placeholder={manualForkInfo?.suggested_owner || user?.login || ''} />
+              </div>
+              <div>
+                <Label htmlFor="repo" className="text-white">Repo name</Label>
+                <Input id="repo" value={customization.repo} onChange={(e) => setCustomization(prev => ({ ...prev, repo: e.target.value }))} placeholder={manualForkInfo?.suggested_repo || ''} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button className="bg-white text-black hover:bg-gray-200" onClick={resumeAfterManualFork}>Continue</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {assignmentResponse && (
             <Card className="bg-figma-medium-gray border-figma-light-gray">
               <CardHeader>
                 <CardTitle className="text-figma-text-primary flex items-center">

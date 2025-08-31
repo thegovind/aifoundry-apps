@@ -16,9 +16,17 @@ GITHUB_TOKEN=your-github-personal-access-token
 
 # Optional: Devin API Configuration
 DEVIN_API_BASE_URL=https://api.devin.ai
+DEVIN_API_KEY=your-devin-api-key-here
 
 # Application Configuration
 PYTHONPATH=/app
+
+# Dependencies
+- PyNaCl: Required for GitHub secrets encryption
+
+# Cosmos DB Configuration
+COSMOS_CONNECTION_STRING=AccountEndpoint=https://aifoundryapps-cosmos.documents.azure.com:443/;AccountKey=your-cosmos-key-here;
+COSMOS_DATABASE_ID=aifoundry
 ```
 
 ## Setup Instructions

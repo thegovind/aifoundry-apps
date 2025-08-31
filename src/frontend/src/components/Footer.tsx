@@ -5,6 +5,8 @@ export function Footer() {
   const [starCount, setStarCount] = useState<number | null>(null)
 
   useEffect(() => {
+    const shouldFetch = (import.meta as any).env.VITE_SHOW_STAR_COUNT === 'true'
+    if (!shouldFetch) return
     const fetchStarCount = async () => {
       try {
         const response = await fetch('https://api.github.com/repos/Azure/Aifoundry-apps')
@@ -12,11 +14,10 @@ export function Footer() {
           const data = await response.json()
           setStarCount(data.stargazers_count)
         }
-      } catch (error) {
-        console.error('Failed to fetch star count:', error)
+      } catch {
+        // silently ignore to avoid noisy 403s/rate limits in dev
       }
     }
-
     fetchStarCount()
   }, [])
 
