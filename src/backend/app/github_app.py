@@ -70,6 +70,40 @@ class GitHubAppClient:
             else:
                 raise HTTPException(status_code=response.status_code, detail=f"Failed to get installation token: {response.text}")
     
+    async def get_installation_id_for_owner(self, owner: str) -> str:
+        """
+        Resolve installation id for a user or org "owner" for this GitHub App.
+        Tries org endpoint first, then user endpoint.
+        """
+        jwt_token = self.generate_jwt_token()
+        async with httpx.AsyncClient() as client:
+            # Try org installation
+            org_resp = await client.get(
+                f"https://api.github.com/orgs/{owner}/installation",
+                headers={
+                    "Authorization": f"Bearer {jwt_token}",
+                    "Accept": "application/vnd.github+json",
+                },
+            )
+            if org_resp.status_code == 200:
+                return str(org_resp.json().get("id"))
+            # Try user installation
+            user_resp = await client.get(
+                f"https://api.github.com/users/{owner}/installation",
+                headers={
+                    "Authorization": f"Bearer {jwt_token}",
+                    "Accept": "application/vnd.github+json",
+                },
+            )
+            if user_resp.status_code == 200:
+                return str(user_resp.json().get("id"))
+            raise HTTPException(status_code=404, detail=f"No installation found for owner '{owner}'. Ensure the GitHub App is installed for this account.")
+
+    async def get_installation_token_for_owner(self, owner: str) -> str:
+        """Convenience method: resolve installation for owner and mint a token."""
+        installation_id = await self.get_installation_id_for_owner(owner)
+        return await self.get_installation_token(installation_id)
+    
     async def fork_repository(self, installation_token: str, owner: str, repo: str, new_owner: str) -> Dict[str, Any]:
         """Fork a repository to the authenticated user's account"""
         async with httpx.AsyncClient() as client:

@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import mermaid from 'mermaid'
 import { ArrowLeft, Settings, GitBranch, Loader2, X } from 'lucide-react'
+import { Progress } from './ui/progress'
 import { Button } from './ui/button'
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from './ui/toast'
@@ -23,6 +24,8 @@ interface PatternCustomization {
   azureFoundryConfig: string
   useMCPTools: boolean
   useA2A: boolean
+  owner?: string
+  repo?: string
 }
 
 interface CustomizationRequest {
@@ -340,6 +343,9 @@ export function PatternWorkbench() {
   const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [apiKey, setApiKey] = useState<string>('')
   const [endpoint, setEndpoint] = useState<string>('')
+  const [githubPat, setGithubPat] = useState<string>('')
+  const [preferImport, setPreferImport] = useState<boolean>(false)
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false)
   const [taskBreakdown, setTaskBreakdown] = useState<TaskBreakdown[]>([])
   const [isGeneratingTasks, setIsGeneratingTasks] = useState(false)
   const [isAssigningTasks, setIsAssigningTasks] = useState(false)
@@ -348,6 +354,11 @@ export function PatternWorkbench() {
   const [assignmentResponse, setAssignmentResponse] = useState<any>(null)
   const [banner, setBanner] = useState<{ repoUrl?: string; sessionUrl?: string; agent?: string } | null>(null)
   const responseRef = useRef<HTMLDivElement | null>(null)
+  const [progressLog, setProgressLog] = useState<string[]>([])
+  const [progressPercent, setProgressPercent] = useState<number | undefined>(undefined)
+  const [lastProgressAt, setLastProgressAt] = useState<number | null>(null)
+  const [timedOut, setTimedOut] = useState<boolean>(false)
+  const [manualForkInfo, setManualForkInfo] = useState<null | { fork_url: string; suggested_owner?: string; suggested_repo?: string }>(null)
 
   const apiUrl = import.meta.env.VITE_API_URL
 
@@ -400,11 +411,19 @@ export function PatternWorkbench() {
 
     setIsAssigningTasks(true)
     setAssignmentPhase('fork')
+    setShowAdvanced(false)
+    setManualForkInfo(null)
+    setTimedOut(false)
+    setProgressPercent(undefined)
+    setLastProgressAt(Date.now())
     try {
       const mappedCustomization = mapPatternToCustomizationRequest()
       const payload = {
         agent_id: selectedAgent,
         api_key: (selectedAgent === 'codex-cli' || selectedAgent === 'devin') ? apiKey : accessToken,
+        github_token: accessToken || undefined,
+        github_pat: githubPat || undefined,
+        prefer_import: preferImport,
         endpoint: endpointParam || endpoint,
         template_id: patternId,
         customization: mappedCustomization,
@@ -413,11 +432,46 @@ export function PatternWorkbench() {
         })
       }
 
+      const jobId = crypto.randomUUID()
+      const es = new EventSource(`${apiUrl}/api/progress/${jobId}/stream`)
+      const mark = () => setLastProgressAt(Date.now())
+      const bump = (p: number) => setProgressPercent(prev => Math.max(prev ?? 0, p))
+      es.addEventListener('fork-start', () => { setProgressLog(prev => [...prev, 'Forking repository…']); mark(); bump(10) })
+      es.addEventListener('fork-ok', () => { setProgressLog(prev => [...prev, 'Fork complete']); mark(); bump(30) })
+      es.addEventListener('create-start', () => { setProgressLog(prev => [...prev, 'Creating repository…']); mark(); bump(20) })
+      es.addEventListener('populate-start', () => { setProgressLog(prev => [...prev, 'Populating repository contents…']); mark(); bump(40) })
+      es.addEventListener('import-ok', () => { setProgressLog(prev => [...prev, 'Import completed']); mark(); bump(60) })
+      es.addEventListener('copy-ok', () => { setProgressLog(prev => [...prev, 'Copy completed']); mark(); bump(70) })
+      es.addEventListener('copy-progress', (e: MessageEvent) => {
+        try {
+          const data = JSON.parse((e as any).data)
+          const { copied, total } = data || {}
+          if (copied) {
+            setProgressLog(prev => [...prev, `Copied ${copied}${total ? ` / ${total}` : ''} files…`])
+            if (total) setProgressPercent(Math.max(70, Math.min(90, Math.round((copied / total) * 90))))
+            mark()
+          }
+        } catch {}
+      })
+      es.addEventListener('write-agents', () => { setAssignmentPhase('write'); bump(85); mark() })
+      es.addEventListener('agent-start', () => { setAssignmentPhase('agent'); bump(90); mark() })
+      es.addEventListener('done', () => { setAssignmentPhase('done'); setProgressPercent(100); mark(); es.close() })
+
+      const interval = window.setInterval(() => {
+        if (!lastProgressAt) return
+        if (Date.now() - (lastProgressAt || 0) > 60000 && !timedOut) {
+          setTimedOut(true)
+          try { es.close() } catch {}
+          window.clearInterval(interval)
+        }
+      }, 5000)
+
       const response = await fetch(`${apiUrl}/api/templates/${patternId}/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+          'X-Progress-Job': jobId,
+          ...(accessToken && selectedAgent !== 'devin' && selectedAgent !== 'codex-cli' ? { 'Authorization': `Bearer ${accessToken}` } : {})
         },
         body: JSON.stringify(payload)
       })
@@ -427,6 +481,13 @@ export function PatternWorkbench() {
         const result = await response.json()
         setAssignmentPhase('done')
         console.log('Assignment successful:', result)
+        if (result?.status === 'partial_success' && result?.action === 'manual_fork_required') {
+          setManualForkInfo({ fork_url: result.fork_url, suggested_owner: result.suggested_owner, suggested_repo: result.suggested_repo })
+          setIsAssigningTasks(false)
+          setTimedOut(true)
+          setAssignmentResponse(result)
+          return
+        }
         
         // Store the response for display
         setAssignmentResponse(result)
@@ -474,6 +535,11 @@ export function PatternWorkbench() {
       } else {
         const error = await response.json()
         console.error('Assignment failed:', error)
+        if (error?.action === 'manual_fork_required' && error?.fork_url) {
+          setManualForkInfo({ fork_url: error.fork_url, suggested_owner: error.suggested_owner, suggested_repo: error.suggested_repo })
+          setIsAssigningTasks(false)
+          setTimedOut(true)
+        }
         
         // Store the error response for display
         setAssignmentResponse({
@@ -573,7 +639,77 @@ export function PatternWorkbench() {
                     value={customization.scenarioDescription}
                     onChange={(e) => setCustomization(prev => ({ ...prev, scenarioDescription: e.target.value }))}
                     className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
-                  />
+          />
+
+            {/* Advanced GitHub options toggle */}
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-sm underline text-figma-text-secondary hover:text-white"
+              >
+                {showAdvanced ? 'Hide Advanced GitHub Options' : 'Show Advanced GitHub Options'}
+              </button>
+            </div>
+
+            {showAdvanced && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray">
+                <CardHeader>
+                  <CardTitle className="text-figma-text-primary">Advanced GitHub Options</CardTitle>
+                  <CardDescription className="text-figma-text-secondary">
+                    If authenticated but API calls fail with 403, provide a classic Personal Access Token or choose import instead of fork.
+                    <br />
+                    Token scopes: <span className="text-white">public_repo</span> (for public repos). Use <span className="text-white">repo</span> for private repos or managing Actions secrets.
+                    {' '}<a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300 ml-1">Get a GitHub token</a>.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <Label htmlFor="githubPat" className="text-white">GitHub Personal Access Token (optional)</Label>
+                    <Input
+                      id="githubPat"
+                      type="password"
+                      placeholder="github_pat_… or ghp_… (public_repo or repo scope)"
+                      value={githubPat}
+                      onChange={(e) => setGithubPat(e.target.value)}
+                      className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                    />
+                  </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="preferImport" checked={preferImport} onCheckedChange={(checked) => setPreferImport(!!checked)} />
+                  <Label htmlFor="preferImport" className="text-white text-sm">Prefer Import (copy) instead of Fork</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="text-xs"
+                    onClick={async () => {
+                      const token = githubPat || accessToken
+                      if (!token) return
+                      try {
+                        const r = await fetch(`${apiUrl}/api/github/test-token`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ token })
+                        })
+                        const data = await r.json()
+                        if (data.ok) {
+                          toast({ title: `GitHub token OK for ${data.login}`, description: `Scopes: ${(data.scopes || []).join(', ') || 'none'}` })
+                        } else {
+                          toast({ title: 'Token check failed', description: data.error || String(data.status), variant: 'destructive' as any })
+                        }
+                      } catch (e: any) {
+                        toast({ title: 'Token check error', description: String(e), variant: 'destructive' as any })
+                      }
+                    }}
+                  >
+                    Test GitHub Token
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
                 </div>
                 
                 <div>
@@ -794,8 +930,8 @@ export function PatternWorkbench() {
               <Card className="bg-figma-medium-gray border-figma-light-gray">
                 <CardHeader>
                   <CardTitle className="text-figma-text-primary flex items-center">
-                    <GitBranch className="h-5 w-5 mr-2" />
-                    Assignment Response
+                  <GitBranch className="h-5 w-5 mr-2" />
+                  Assignment Response
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -856,6 +992,51 @@ export function PatternWorkbench() {
                         </pre>
                       </div>
                     )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAssigningTasks && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray">
+                <CardHeader>
+                  <CardTitle className="text-figma-text-primary">Live Progress</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-2"><Progress value={progressPercent} /></div>
+                  <div className="p-3 bg-figma-dark-gray rounded border border-figma-light-gray max-h-48 overflow-auto">
+                    <ul className="text-xs text-figma-text-primary space-y-1">
+                      {progressLog.map((line, idx) => (
+                        <li key={idx}>{line}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {timedOut && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray">
+                <CardHeader>
+                  <CardTitle className="text-figma-text-primary">GitHub rate limit or timeout</CardTitle>
+                  <CardDescription className="text-figma-text-secondary">Please fork the template manually, then click Continue to resume.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {manualForkInfo?.fork_url && (
+                    <a className="underline text-blue-400" href={manualForkInfo.fork_url} target="_blank" rel="noopener noreferrer">Fork on GitHub</a>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="owner" className="text-white">Your GitHub owner/org</Label>
+                      <Input id="owner" value={(customization as any).owner || ''} onChange={(e) => setCustomization(prev => ({ ...(prev as any), owner: e.target.value }))} placeholder={manualForkInfo?.suggested_owner || ''} />
+                    </div>
+                    <div>
+                      <Label htmlFor="repo" className="text-white">Repo name</Label>
+                      <Input id="repo" value={(customization as any).repo || ''} onChange={(e) => setCustomization(prev => ({ ...(prev as any), repo: e.target.value }))} placeholder={manualForkInfo?.suggested_repo || ''} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button className="bg-white text-black hover:bg-gray-200" onClick={resumeAfterManualFork}>Continue</Button>
                   </div>
                 </CardContent>
               </Card>

@@ -27,12 +27,56 @@ export function UserDashboard() {
   const [hasMore, setHasMore] = useState(true)
   const [searchPage, setSearchPage] = useState(1)
   const [searchHasMore, setSearchHasMore] = useState(true)
+  const [assignments, setAssignments] = useState<any[]>([])
+  const [assignmentsLoading, setAssignmentsLoading] = useState(true)
 
   useEffect(() => {
     if (isAuthenticated && accessToken) {
       fetchRepositories()
+      fetchAssignments()
     }
   }, [isAuthenticated, accessToken])
+
+  const fetchAssignments = async () => {
+    try {
+      const url = `${(import.meta as any).env.VITE_API_URL}/api/user/assignments`
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        setAssignments(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch assignments:', error)
+    } finally {
+      setAssignmentsLoading(false)
+    }
+  }
+
+  const refreshSessionStatus = async (sessionId: string) => {
+    try {
+      const response = await fetch(`${(import.meta as any).env.VITE_API_URL}/api/sessions/${sessionId}/status`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+      
+      if (response.ok) {
+        const sessionData = await response.json()
+        setAssignments(prev => prev.map(assignment => 
+          assignment.session_id === sessionId 
+            ? { ...assignment, session_status: sessionData.status }
+            : assignment
+        ))
+      }
+    } catch (error) {
+      console.error('Failed to refresh session status:', error)
+    }
+  }
 
   const fetchRepositories = async (nextPage = 1, append = false) => {
     try {
@@ -303,17 +347,86 @@ export function UserDashboard() {
             <h2 className="text-xl font-semibold text-figma-text-primary mb-4">
               Deployed Agents
             </h2>
-            <div className="bg-figma-medium-gray border border-figma-light-gray rounded-lg p-6">
-              <div className="text-center text-figma-text-secondary">
-                <p>No agents deployed yet.</p>
-                <p className="mt-2">Browse templates and deploy your first AI agent!</p>
-                <Link to="/templates">
-                  <button className="mt-4 bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-md">
-                    Browse Templates
-                  </button>
-                </Link>
+            {assignmentsLoading ? (
+              <div className="text-figma-text-secondary">Loading assignments...</div>
+            ) : assignments.length === 0 ? (
+              <div className="bg-figma-medium-gray border border-figma-light-gray rounded-lg p-6">
+                <div className="text-center text-figma-text-secondary">
+                  <p>No agents deployed yet.</p>
+                  <p className="mt-2">Browse templates and deploy your first AI agent!</p>
+                  <Link to="/templates">
+                    <button className="mt-4 bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-md">
+                      Browse Templates
+                    </button>
+                  </Link>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                {assignments.map((assignment) => (
+                  <div key={assignment.id} className="bg-figma-medium-gray border border-figma-light-gray rounded-lg p-4">
+                    <div className="mb-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-figma-text-primary text-lg font-medium">
+                          {assignment.template_title}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            assignment.status === 'success' 
+                              ? 'bg-green-900 text-green-300 border border-green-400' 
+                              : 'bg-red-900 text-red-300 border border-red-400'
+                          }`}>
+                            {assignment.status}
+                          </span>
+                          {assignment.session_status && (
+                            <span className={`px-2 py-1 rounded text-xs ${
+                              assignment.session_status === 'completed' 
+                                ? 'bg-blue-900 text-blue-300 border border-blue-400'
+                                : assignment.session_status === 'running'
+                                ? 'bg-yellow-900 text-yellow-300 border border-yellow-400'
+                                : 'bg-gray-900 text-gray-300 border border-gray-400'
+                            }`}>
+                              Session: {assignment.session_status}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-figma-text-secondary text-sm">
+                        Agent: {assignment.agent_id} • {assignment.customization.company_name}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4 text-sm text-figma-text-secondary">
+                        <span>📅 {new Date(assignment.created_at).toLocaleDateString()}</span>
+                        {assignment.repository_url && (
+                          <a href={assignment.repository_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                            📁 Repository
+                          </a>
+                        )}
+                        {assignment.session_url && (
+                          <a href={assignment.session_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                            🔗 Session
+                          </a>
+                        )}
+                        {assignment.session_id && assignment.agent_id === 'devin' && (
+                          <button 
+                            onClick={() => refreshSessionStatus(assignment.session_id)}
+                            className="text-blue-400 hover:text-blue-300 text-xs"
+                          >
+                            🔄 Refresh Status
+                          </button>
+                        )}
+                        {assignment.issue_url && (
+                          <a href={assignment.issue_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                            🐛 Issue #{assignment.issue_number}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

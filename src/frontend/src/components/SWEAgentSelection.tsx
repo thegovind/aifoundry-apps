@@ -44,11 +44,11 @@ const sweAgents: SWEAgent[] = [
   {
     id: 'github-copilot',
     name: 'GitHub Copilot Coding Agent',
-    description: 'AI pair programmer integrated with GitHub via MCP',
+    description: 'AI pair programmer that creates issues and works on your repository',
     icon: <SiGithub className="w-6 h-6 text-white" />,
     requiresApiKey: true,
     configType: 'oauth',
-    instructions: 'Sign in with GitHub to use GitHub Copilot. The agent is invoked via Model Context Protocol (MCP) for seamless integration.'
+    instructions: 'Sign in with GitHub to use GitHub Copilot. Make sure GitHub Copilot Coding Agent is enabled in your organization. Learn how: https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-organization/add-copilot-coding-agent'
   },
   {
     id: 'codex-cli',
@@ -155,7 +155,7 @@ export function SWEAgentSelection({
                 <div className="p-3 bg-blue-900/20 border border-blue-600 rounded-lg">
                   <p className="text-blue-400 text-sm font-medium mb-2">Setup Instructions:</p>
                   <p className="text-figma-text-secondary text-xs">
-                    {agent.instructions}
+                    {agent.instructions} We'll automatically configure GitHub repository secrets for your workflow.
                   </p>
                 </div>
                 <div>
@@ -364,4 +364,4 @@ export function SWEAgentSelection({
       </CardContent>
     </Card>
   )
-}     
+}                              
