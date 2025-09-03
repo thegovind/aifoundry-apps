@@ -57,7 +57,7 @@ const sweAgents: SWEAgent[] = [
     icon: <SiOpenai className="w-6 h-6 text-white" />,
     requiresApiKey: true,
     configType: 'azure-openai',
-    instructions: 'Deploy Azure OpenAI Codex model following this guide: https://devblogs.microsoft.com/all-things-azure/securely-turbo%E2%80%91charge-your-software-delivery-with-the-codex-coding-agent-on-azure-openai/#step-1-%E2%80%93-deploy-a-codex-model-in-azure-ai-foundry. You need the API Key and Endpoint. GitHub Actions workflows will be automatically created for your tasks.'
+    instructions: 'Deploy Azure OpenAI Codex model following this guide. You need the API Key and Endpoint.'
   },
   {
     id: 'devin',
@@ -155,7 +155,16 @@ export function SWEAgentSelection({
                 <div className="p-3 bg-blue-900/20 border border-blue-600 rounded-lg">
                   <p className="text-blue-400 text-sm font-medium mb-2">Setup Instructions:</p>
                   <p className="text-figma-text-secondary text-xs">
-                    {agent.instructions} We'll automatically configure GitHub repository secrets for your workflow.
+                    Deploy Azure OpenAI Codex model following{' '}
+                    <a
+                      href="https://devblogs.microsoft.com/all-things-azure/securely-turbo%E2%80%91charge-your-software-delivery-with-the-codex-coding-agent-on-azure-openai/#step-1-%E2%80%93-deploy-a-codex-model-in-azure-ai-foundry"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-white text-blue-400"
+                    >
+                      this guide
+                    </a>
+                    . You need the API Key and Endpoint. GitHub Actions workflows will be automatically created and repository secrets configured.
                   </p>
                 </div>
                 <div>

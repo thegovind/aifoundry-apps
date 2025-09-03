@@ -63,7 +63,7 @@ export function SpecWorkbench() {
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
 
-  const [customization, setCustomization] = useState<CustomizationRequest>({
+  const [customization, _setCustomization] = useState<CustomizationRequest>({
     customer_scenario: '',
     brand_theme: '',
     primary_color: '#3b82f6',
@@ -510,10 +510,7 @@ export function SpecWorkbench() {
                         Saving...
                       </>
                     ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Specification
-                      </>
+                      <Save className="h-4 w-4" />
                     )}
                   </Button>
                 </div>
