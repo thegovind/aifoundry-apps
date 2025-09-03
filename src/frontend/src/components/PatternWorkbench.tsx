@@ -600,8 +600,9 @@ export function PatternWorkbench() {
               Back to Patterns
             </Link>
           </Button>
-          <h1 className="text-3xl font-bold text-figma-text-primary">
+          <h1 className="text-3xl font-bold text-figma-text-primary flex items-center gap-3">
             Configure {patternId ? formatPatternTitle(patternId) : 'Pattern'}
+            <span className="text-sm bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-full" title="Work in Progress">WIP</span>
           </h1>
         </div>
 
