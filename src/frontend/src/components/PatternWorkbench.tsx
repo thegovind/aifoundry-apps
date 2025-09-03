@@ -401,6 +401,55 @@ export function PatternWorkbench() {
     }
   }
 
+  const resumeAfterManualFork = async () => {
+    if (!apiKey) return
+    const jobId = (window.crypto && 'randomUUID' in crypto)
+      ? (crypto as any).randomUUID()
+      : Math.random().toString(36).slice(2)
+    setIsAssigningTasks(true)
+    setTimedOut(false)
+    setProgressLog([])
+    setProgressPercent(undefined)
+    setAssignmentPhase('write')
+    try {
+      const es = new EventSource(`${apiUrl}/api/progress/${jobId}/stream`)
+      es.addEventListener('write-agents', () => setAssignmentPhase('write'))
+      es.addEventListener('agent-start', () => setAssignmentPhase('agent'))
+      es.addEventListener('done', () => { setAssignmentPhase('done'); es.close() })
+    } catch {}
+    const mappedCustomization = mapPatternToCustomizationRequest()
+    const payload = {
+      agent_id: 'devin',
+      api_key: apiKey,
+      github_token: accessToken || undefined,
+      github_pat: githubPat || undefined,
+      endpoint,
+      template_id: patternId,
+      customization: mappedCustomization,
+      mode: workflowMode === 'oneshot' ? 'oneshot' : 'breakdown'
+    }
+    try {
+      const response = await fetch(`${apiUrl}/api/templates/${patternId}/resume`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken && { 'Authorization': `Bearer ${accessToken}` })
+        },
+        body: JSON.stringify(payload)
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setAssignmentResponse(result)
+        setAssignmentPhase('done')
+      }
+    } catch (error) {
+      console.error('Error resuming after manual fork:', error)
+      setAssignmentPhase('idle')
+    }
+    setIsAssigningTasks(false)
+  }
+
   const assignToSWEAgent = async (taskId?: string, endpointParam?: string) => {
     
     if (selectedAgent === 'codex-cli' || selectedAgent === 'devin') {
