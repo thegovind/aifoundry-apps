@@ -50,7 +50,13 @@ class SpecService:
             content=request.content,
             tags=request.tags,
             created_at=datetime.now().isoformat(),
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
+            phase="specification",
+            specification=request.content,  # Initial content goes to specification
+            plan=None,
+            tasks=None,
+            branch_name=None,
+            feature_number=None
         )
         
         self._specs_data.append(new_spec)
@@ -71,7 +77,45 @@ class SpecService:
             content=request.content,
             tags=request.tags,
             created_at=spec.created_at,
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
+            phase=spec.phase,
+            specification=spec.specification,
+            plan=spec.plan,
+            tasks=spec.tasks,
+            branch_name=spec.branch_name,
+            feature_number=spec.feature_number
+        )
+        
+        for i, s in enumerate(self._specs_data):
+            if s.id == spec_id:
+                self._specs_data[i] = updated_spec
+                break
+        
+        self._spec_by_id[spec_id] = updated_spec
+        self._save_specs()
+        
+        return updated_spec
+    
+    def update_spec_phase(self, spec_id: str, phase: str, **kwargs) -> Optional[Spec]:
+        """Update a specific phase of the spec"""
+        spec = self._spec_by_id.get(spec_id)
+        if not spec:
+            return None
+        
+        updated_spec = Spec(
+            id=spec.id,
+            title=spec.title,
+            description=spec.description,
+            content=spec.content,
+            tags=spec.tags,
+            created_at=spec.created_at,
+            updated_at=datetime.now().isoformat(),
+            phase=phase,
+            specification=kwargs.get('specification', spec.specification),
+            plan=kwargs.get('plan', spec.plan),
+            tasks=kwargs.get('tasks', spec.tasks),
+            branch_name=kwargs.get('branch_name', spec.branch_name),
+            feature_number=kwargs.get('feature_number', spec.feature_number)
         )
         
         for i, s in enumerate(self._specs_data):

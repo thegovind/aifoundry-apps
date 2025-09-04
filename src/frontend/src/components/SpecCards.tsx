@@ -59,7 +59,7 @@ export function SpecCards() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <p className="text-figma-text-secondary">
-          Create and manage your AI specifications with markdown editing and task breakdown.
+          Follow the Spec-Driven Development methodology: Specify → Plan → Tasks → Implementation
         </p>
         <Button asChild className="bg-white text-black hover:bg-gray-200">
           <Link to="/spec/new" className="flex items-center">
@@ -77,7 +77,7 @@ export function SpecCards() {
               No specifications yet
             </h3>
             <p className="text-figma-text-secondary mb-6">
-              Create your first specification to get started with AI-powered task breakdown.
+              Create your first spec to get started with Spec-Driven Development.
             </p>
             <Button asChild className="bg-white text-black hover:bg-gray-200">
               <Link to="/spec/new" className="flex items-center">

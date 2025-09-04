@@ -15,7 +15,7 @@ export function SpecsPage() {
             </Link>
           </Button>
           <h1 className="text-3xl font-bold text-figma-text-primary">
-            AI Specifications
+            Spec-Kit: Spec-Driven Development
           </h1>
         </div>
         <SpecCards />

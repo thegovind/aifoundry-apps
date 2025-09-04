@@ -12,7 +12,7 @@ export function LandingPage() {
             Build AI Solutions with SWE Agents
           </h1>
           <p className="text-xl text-figma-text-secondary max-w-3xl mx-auto">
-            Customize AI solution accelerators through spec-driven development and context engineering for your scenario
+            Build high-quality software faster with Spec-Driven Development - where specifications become executable
           </p>
         </div>
         
@@ -22,20 +22,20 @@ export function LandingPage() {
               <div className="w-16 h-16 bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FileText className="h-8 w-8 text-orange-400" />
               </div>
-              <CardTitle className="text-2xl text-figma-text-primary">Customize Specs</CardTitle>
+              <CardTitle className="text-2xl text-figma-text-primary">Spec-Kit Frontend</CardTitle>
               <CardDescription className="text-figma-text-secondary">
-                Write detailed specifications with markdown and break them down into actionable tasks
+                Build high-quality software faster with Spec-Driven Development methodology
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
-                <li>• Markdown specification editor</li>
-                <li>• AI-enhanced task breakdown</li>
-                <li>• SWE agent assignment</li>
+                <li>• /specify - Define requirements & goals</li>
+                <li>• /plan - Generate technical architecture</li>
+                <li>• /tasks - Create actionable breakdown</li>
               </ul>
               <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors">
                 <Link to="/specs" className="flex items-center justify-center">
-                  Customize Specs
+                  Start Spec-Driven Development
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
