@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from typing import List
 import logging
-from ...models.schemas import Spec, SpecCreateRequest, CustomizationRequest, SWEAgentRequest
+from ...models.schemas import Spec, SpecCreateRequest, CustomizationRequest, SWEAgentRequest, SpecifyRequest, PlanRequest, TasksRequest
 from ...services.spec_service import SpecService
 from ...api.dependencies import get_spec_service
 from ...core.config import settings
@@ -579,6 +579,258 @@ Return the enhanced content in markdown format."""
     
     except Exception as e:
         logger.error(f"Error in enhance_spec: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{spec_id}/specify")
+async def specify_phase(spec_id: str, request: SpecifyRequest, spec_service: SpecService = Depends(get_spec_service)):
+    """Handle the /specify phase - Define requirements and what to build"""
+    try:
+        spec = spec_service.get_spec_by_id(spec_id)
+        if not spec:
+            raise HTTPException(status_code=404, detail="Specification not found")
+        
+        # Generate a semantic branch name based on the requirements
+        import re
+        def slugify(text: str) -> str:
+            return re.sub(r'[^a-zA-Z0-9-]', '-', text.lower()).strip('-')[:50]
+        
+        # Generate feature number (simple incrementing)
+        all_specs = spec_service.get_all_specs()
+        feature_num = str(len([s for s in all_specs if s.feature_number]) + 1).zfill(3)
+        
+        # Create branch name from title
+        branch_name = f"{feature_num}-{slugify(spec.title)}"
+        
+        updated_spec = spec_service.update_spec_phase(
+            spec_id, 
+            phase="specification",
+            specification=request.requirements,
+            branch_name=branch_name,
+            feature_number=feature_num
+        )
+        
+        if not updated_spec:
+            raise HTTPException(status_code=404, detail="Specification not found")
+            
+        return {
+            "message": "Specification phase completed",
+            "spec": updated_spec,
+            "next_step": "Use /plan to define technical implementation"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error in specify_phase: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{spec_id}/plan")
+async def plan_phase(spec_id: str, request: PlanRequest, spec_service: SpecService = Depends(get_spec_service)):
+    """Handle the /plan phase - Create technical implementation plan"""
+    try:
+        spec = spec_service.get_spec_by_id(spec_id)
+        if not spec:
+            raise HTTPException(status_code=404, detail="Specification not found")
+        
+        if spec.phase != "specification":
+            raise HTTPException(status_code=400, detail="Must complete specification phase first")
+        
+        # Use AI to generate technical plan based on specification and tech stack
+        base_url = f"{settings.AZURE_OPENAI_ENDPOINT.rstrip('/')}/openai/v1/"
+        client = OpenAI(
+            api_key=settings.AZURE_OPENAI_KEY,
+            base_url=base_url,
+            default_query={"api-version": settings.API_VERSION},
+            timeout=120.0
+        )
+        
+        system_prompt = """You are a senior technical architect. Given a specification and technology requirements, create a comprehensive technical implementation plan."""
+        
+        user_prompt = f"""Create a detailed technical implementation plan for the following:
+
+Specification: {spec.specification}
+Technology Stack: {request.tech_stack}
+Architecture: {request.architecture or 'Standard best practices'}
+Constraints: {request.constraints or 'None specified'}
+
+Please provide:
+1. Architecture Overview
+2. Technical Requirements
+3. Implementation Approach
+4. API Design (if applicable)
+5. Data Models
+6. Testing Strategy
+7. Deployment Considerations
+
+Format the response in markdown."""
+
+        response = client.responses.create(
+            model=settings.MODEL_NAME,
+            instructions=system_prompt,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": user_prompt},
+                    ],
+                }
+            ],
+            max_output_tokens=8000
+        )
+        
+        plan_content = getattr(response, "output_text", None)
+        if not plan_content:
+            try:
+                parts = []
+                for item in getattr(response, "output", []) or []:
+                    for c in getattr(item, "content", []) or []:
+                        if getattr(c, "type", None) in ("text", "output_text"):
+                            parts.append(getattr(c, "text", ""))
+                plan_content = "".join(parts).strip()
+            except Exception:
+                plan_content = "# Technical Implementation Plan\n\nPlan generation failed."
+        
+        updated_spec = spec_service.update_spec_phase(
+            spec_id,
+            phase="plan", 
+            plan=plan_content
+        )
+        
+        return {
+            "message": "Plan phase completed",
+            "spec": updated_spec,
+            "next_step": "Use /tasks to break down into actionable tasks"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error in plan_phase: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{spec_id}/tasks")
+async def tasks_phase(spec_id: str, request: TasksRequest, spec_service: SpecService = Depends(get_spec_service)):
+    """Handle the /tasks phase - Break down into actionable implementation tasks"""
+    try:
+        spec = spec_service.get_spec_by_id(spec_id)
+        if not spec:
+            raise HTTPException(status_code=404, detail="Specification not found")
+        
+        if spec.phase != "plan":
+            raise HTTPException(status_code=400, detail="Must complete plan phase first")
+        
+        # Use the existing task breakdown functionality
+        # Create a mock CustomizationRequest for compatibility
+        customization = CustomizationRequest(
+            customer_scenario=f"Implement: {spec.title}",
+            brand_theme="Default",
+            primary_color="#3b82f6",
+            company_name="Default",
+            industry="Technology",
+            use_case="Implementation",
+            additional_requirements=f"Specification: {spec.specification}\n\nPlan: {spec.plan}"
+        )
+        
+        # Reuse existing task breakdown logic
+        base_url = f"{settings.AZURE_OPENAI_ENDPOINT.rstrip('/')}/openai/v1/"
+        client = OpenAI(
+            api_key=settings.AZURE_OPENAI_KEY,
+            base_url=base_url,
+            default_query={"api-version": settings.API_VERSION},
+            timeout=120.0
+        )
+        
+        system_prompt = f"""You are a senior software project lead. Given a specification and technical plan, produce actionable implementation tasks.
+
+Generate 8–15 concrete engineering tasks, each sized 1–6 hours.
+- Description: one sentence, max 20 words. No boilerplate.
+- Acceptance criteria: 3–5 bullets, each ≤ 12 words, objectively verifiable.
+- Title starts with an action verb (Implement, Add, Refactor, Wire, Document, Test, Configure, etc.).
+
+Output format (JSON array):
+- Return a JSON array of task objects
+- Keys: id, title, description, acceptanceCriteria, estimatedTime, estimatedTokens, priority, status
+
+Specification: {spec.specification}
+Technical Plan: {spec.plan}"""
+
+        user_prompt = f"""Generate the task breakdown now based on the specification and technical plan above.
+
+Mode: {request.mode}
+
+Requirements:
+- Generate 8–15 implementation tasks
+- Keep descriptions ≤ 20 words
+- Keep acceptance criteria bullets ≤ 12 words each
+- Focus on concrete implementation steps"""
+
+        response = client.responses.create(
+            model=settings.MODEL_NAME,
+            instructions=system_prompt,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": user_prompt},
+                    ],
+                }
+            ],
+            max_output_tokens=8000
+        )
+        
+        import json
+        tasks_json = getattr(response, "output_text", None)
+        if not tasks_json:
+            try:
+                parts = []
+                for item in getattr(response, "output", []) or []:
+                    for c in getattr(item, "content", []) or []:
+                        if getattr(c, "type", None) in ("text", "output_text"):
+                            parts.append(getattr(c, "text", ""))
+                tasks_json = "".join(parts).strip()
+            except Exception:
+                tasks_json = ""
+        
+        # Clean up JSON formatting
+        if tasks_json.startswith("```json"):
+            tasks_json = tasks_json[7:-3].strip()
+        elif tasks_json.startswith("```"):
+            tasks_json = tasks_json[3:-3].strip()
+        
+        try:
+            tasks = json.loads(tasks_json)
+            if not isinstance(tasks, list):
+                # If it's wrapped in an object, extract the array
+                if isinstance(tasks, dict) and "tasks" in tasks:
+                    tasks = tasks["tasks"]
+                else:
+                    raise ValueError("Expected task array")
+        except Exception:
+            # Fallback tasks if parsing fails
+            tasks = [
+                {
+                    "id": "task-1",
+                    "title": f"Implement core functionality for {spec.title}",
+                    "description": "Set up project structure and implement main features",
+                    "estimatedTime": "4-6 hours",
+                    "estimatedTokens": "15000-25000 tokens",
+                    "priority": "high",
+                    "status": "pending",
+                    "acceptanceCriteria": ["Core functionality working", "Tests passing", "Documentation updated"]
+                }
+            ]
+        
+        updated_spec = spec_service.update_spec_phase(
+            spec_id,
+            phase="tasks",
+            tasks=tasks
+        )
+        
+        return {
+            "message": "Tasks phase completed", 
+            "spec": updated_spec,
+            "tasks": tasks,
+            "next_step": "Ready for implementation - assign to SWE agent"
+        }
+    
+    except Exception as e:
+        logger.error(f"Error in tasks_phase: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/{spec_id}/assign")

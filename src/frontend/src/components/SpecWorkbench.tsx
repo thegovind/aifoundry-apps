@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { ArrowLeft, Settings, GitBranch, Loader2, Save, FileText, Wand2, Undo2 } from 'lucide-react'
+import { ArrowLeft, Settings, GitBranch, Loader2, Save, FileText, Wand2, Undo2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from './ui/button'
 import { toast } from '@/hooks/use-toast'
 import { ToastAction } from './ui/toast'
@@ -23,6 +23,13 @@ interface Spec {
   created_at: string
   updated_at: string
   tags: string[]
+  // Spec-kit phases
+  phase: string
+  specification?: string
+  plan?: string
+  tasks?: TaskBreakdown[]
+  branch_name?: string
+  feature_number?: string
 }
 
 interface CustomizationRequest {
@@ -92,6 +99,20 @@ export function SpecWorkbench() {
   const [isEnhancing, setIsEnhancing] = useState(false)
   const [preEnhanceContent, setPreEnhanceContent] = useState<string | null>(null)
   
+  // Spec-kit phase state
+  const [specPhase, setSpecPhase] = useState<'specification' | 'plan' | 'tasks' | 'completed'>('specification')
+  const [requirements, setRequirements] = useState('')
+  const [techStack, setTechStack] = useState('')
+  const [architecture, setArchitecture] = useState('')
+  const [constraints, setConstraints] = useState('')
+  const [isProcessingPhase, setIsProcessingPhase] = useState(false)
+  
+  // UI state
+  const [activeTab, setActiveTab] = useState<'details' | 'specify' | 'plan' | 'tasks'>('details')
+  const [showBasicDetails, setShowBasicDetails] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [planExpanded, setPlanExpanded] = useState(false)
+  
   const apiUrl = import.meta.env.VITE_API_URL
 
   const fetchSpec = useCallback(async () => {
@@ -104,6 +125,25 @@ export function SpecWorkbench() {
         setDescription(data.description)
         setContent(data.content)
         setTags(data.tags || [])
+        // Set spec-kit phase state
+        setSpecPhase(data.phase || 'specification')
+        setRequirements(data.specification || '')
+        if (data.plan) {
+          setContent(data.plan)
+        }
+        if (data.tasks) {
+          setTaskBreakdown(data.tasks)
+          setSidebarCollapsed(false) // Show sidebar when tasks are ready
+        }
+        // Update active tab based on phase
+        if (data.phase === 'specification') {
+          setActiveTab('specify')
+        } else if (data.phase === 'plan') {
+          setActiveTab('plan')
+        } else if (data.phase === 'tasks' || data.phase === 'completed') {
+          setActiveTab('tasks')
+          setShowBasicDetails(false) // Hide basic details when advanced
+        }
       }
     } catch (error) {
       console.error('Error fetching spec:', error)
@@ -306,6 +346,101 @@ export function SpecWorkbench() {
     }
   }
 
+  // Spec-kit phase functions
+  const handleSpecifyPhase = async () => {
+    if (!spec || !requirements.trim()) return
+    
+    setIsProcessingPhase(true)
+    try {
+      const response = await fetch(`${apiUrl}/api/specs/${spec.id}/specify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          requirements: requirements,
+          context: description 
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setSpec(result.spec)
+        setSpecPhase('plan')
+        setActiveTab('plan')
+        setShowBasicDetails(false)
+        toast({ title: 'Specification Complete', description: result.next_step })
+      } else {
+        throw new Error('Failed to process specification')
+      }
+    } catch (error) {
+      console.error('Error in specify phase:', error)
+      toast({ title: 'Error', description: 'Failed to process specification', variant: 'destructive' as any })
+    } finally {
+      setIsProcessingPhase(false)
+    }
+  }
+
+  const handlePlanPhase = async () => {
+    if (!spec || !techStack.trim()) return
+    
+    setIsProcessingPhase(true)
+    try {
+      const response = await fetch(`${apiUrl}/api/specs/${spec.id}/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tech_stack: techStack,
+          architecture: architecture,
+          constraints: constraints
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setSpec(result.spec)
+        setContent(result.spec.plan)
+        setSpecPhase('tasks')
+        setActiveTab('tasks')
+        toast({ title: 'Plan Complete', description: result.next_step })
+      } else {
+        throw new Error('Failed to generate plan')
+      }
+    } catch (error) {
+      console.error('Error in plan phase:', error)
+      toast({ title: 'Error', description: 'Failed to generate plan', variant: 'destructive' as any })
+    } finally {
+      setIsProcessingPhase(false)
+    }
+  }
+
+  const handleTasksPhase = async () => {
+    if (!spec) return
+    
+    setIsProcessingPhase(true)
+    try {
+      const response = await fetch(`${apiUrl}/api/specs/${spec.id}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: workflowMode })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        setSpec(result.spec)
+        setTaskBreakdown(result.tasks)
+        setSpecPhase('completed')
+        setSidebarCollapsed(false) // Show sidebar when tasks are ready
+        toast({ title: 'Tasks Generated', description: result.next_step })
+      } else {
+        throw new Error('Failed to generate tasks')
+      }
+    } catch (error) {
+      console.error('Error in tasks phase:', error)
+      toast({ title: 'Error', description: 'Failed to generate tasks', variant: 'destructive' as any })
+    } finally {
+      setIsProcessingPhase(false)
+    }
+  }
+
   const assignToSWEAgent = async (taskId?: string, endpointParam?: string) => {
 
     // Validate auth requirements
@@ -490,35 +625,103 @@ export function SpecWorkbench() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
+        <div className={`flex gap-8 ${sidebarCollapsed ? '' : 'pr-80'} transition-all duration-300`}>
+          <div className="flex-1 space-y-6">
+            {/* Spec-Kit Phase Progress */}
             <Card className="bg-figma-medium-gray border-figma-light-gray">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-figma-text-primary flex items-center">
-                    <FileText className="h-5 w-5 mr-2" />
-                    Specification Details
-                  </CardTitle>
-                  <Button 
-                    onClick={saveSpec} 
-                    disabled={saving || !title.trim()}
-                    className="bg-white text-black hover:bg-gray-200"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <div>
+                    <CardTitle className="text-figma-text-primary">Spec-Driven Development</CardTitle>
+                    <CardDescription className="text-figma-text-secondary">
+                      Follow the three-phase approach: Specify → Plan → Tasks
+                    </CardDescription>
+                  </div>
+                  {spec?.branch_name && (
+                    <div className="text-sm text-figma-text-secondary">
+                      Branch: <code className="bg-figma-dark-gray px-2 py-1 rounded">{spec.branch_name}</code>
+                    </div>
+                  )}
                 </div>
-                <CardDescription className="text-figma-text-secondary">
-                  Define your specification with title, description, and content
-                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setActiveTab('details')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
+                      activeTab === 'details' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                    }`}
+                  >
+                    Details
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('specify')}
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors ${
+                      activeTab === 'specify' ? 'bg-blue-600 text-white' : 
+                      specPhase === 'specification' ? 'bg-blue-500 text-white' :
+                      (specPhase === 'plan' || specPhase === 'tasks' || specPhase === 'completed') ? 'bg-green-600 text-white hover:bg-green-500' : 
+                      'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                    }`}
+                  >
+                    1. Specify
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('plan')}
+                    disabled={specPhase === 'specification' && !spec?.specification}
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      activeTab === 'plan' ? 'bg-blue-600 text-white' :
+                      specPhase === 'plan' ? 'bg-blue-500 text-white' :
+                      (specPhase === 'tasks' || specPhase === 'completed') ? 'bg-green-600 text-white hover:bg-green-500' :
+                      'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                    }`}
+                  >
+                    2. Plan
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('tasks')}
+                    disabled={specPhase === 'specification' || (specPhase === 'plan' && !spec?.plan)}
+                    className={`px-3 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      activeTab === 'tasks' ? 'bg-blue-600 text-white' :
+                      specPhase === 'tasks' ? 'bg-blue-500 text-white' :
+                      specPhase === 'completed' ? 'bg-green-600 text-white hover:bg-green-500' :
+                      'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                    }`}
+                  >
+                    3. Tasks
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Tab Content */}
+            {activeTab === 'details' && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-figma-text-primary flex items-center">
+                      <FileText className="h-5 w-5 mr-2" />
+                      Basic Details
+                    </CardTitle>
+                    <Button 
+                      onClick={saveSpec} 
+                      disabled={saving || !title.trim()}
+                      className="bg-white text-black hover:bg-gray-200"
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <CardDescription className="text-figma-text-secondary">
+                    Project title and description
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                 <div>
                   <Label htmlFor="title" className="text-white">Title</Label>
                   <Input
@@ -640,125 +843,233 @@ export function SpecWorkbench() {
                     ))}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+            )}
 
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label className="text-white">Content (Markdown)</Label>
-                    {!isNewSpec && (
-                      <div className="flex items-center gap-2">
-                        {preEnhanceContent !== null && !isEnhancing && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            title="Undo enhance"
-                            onClick={() => {
-                              setContent(preEnhanceContent || '')
-                              setPreEnhanceContent(null)
-                            }}
-                            className="h-7 w-7 rounded-full hover:bg-figma-light-gray/30"
-                          >
-                            <Undo2 className="h-4 w-4 text-figma-text-secondary" />
-                            <span className="sr-only">Undo enhance</span>
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          onClick={enhanceSpecStream}
-                          disabled={isEnhancing || !spec}
-                          className={`text-xs rounded-full shadow-md ${isEnhancing ? 'bg-figma-light-gray text-figma-text-secondary' : 'bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white hover:from-fuchsia-400 hover:to-indigo-400'}`}
-                        >
-                          {isEnhancing ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                              Enhancing…
-                            </>
-                          ) : (
-                            <>
-                              <Wand2 className="h-3 w-3 mr-2" />
-                              Enhance
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
+            {/* Phase 1: Specify */}
+            {activeTab === 'specify' && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray border-2 border-blue-500">
+                <CardHeader>
+                  <CardTitle className="text-figma-text-primary">Phase 1: Specify Requirements</CardTitle>
+                  <CardDescription className="text-figma-text-secondary">
+                    Define what you want to build and why. Focus on the "what" and "why", not the tech stack.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="requirements" className="text-white">Requirements</Label>
+                    <Textarea
+                      id="requirements"
+                      placeholder="Describe what you want to build. Be explicit about the problem, goals, and user needs..."
+                      value={requirements}
+                      onChange={(e) => setRequirements(e.target.value)}
+                      className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary min-h-[120px]"
+                    />
                   </div>
+                  <Button
+                    onClick={handleSpecifyPhase}
+                    disabled={!requirements.trim() || isProcessingPhase}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isProcessingPhase ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Processing Specification...
+                      </>
+                    ) : (
+                      'Complete Specification Phase'
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Phase 2: Plan */}
+            {activeTab === 'plan' && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray border-2 border-blue-500">
+                <CardHeader>
+                  <CardTitle className="text-figma-text-primary">Phase 2: Technical Planning</CardTitle>
+                  <CardDescription className="text-figma-text-secondary">
+                    Define your tech stack, architecture, and technical constraints.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="techStack" className="text-white">Technology Stack</Label>
+                    <Textarea
+                      id="techStack"
+                      placeholder="e.g., React with TypeScript, Node.js backend, PostgreSQL database..."
+                      value={techStack}
+                      onChange={(e) => setTechStack(e.target.value)}
+                      className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="architecture" className="text-white">Architecture (Optional)</Label>
+                    <Textarea
+                      id="architecture"
+                      placeholder="e.g., Microservices, REST API, Event-driven architecture..."
+                      value={architecture}
+                      onChange={(e) => setArchitecture(e.target.value)}
+                      className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="constraints" className="text-white">Constraints (Optional)</Label>
+                    <Textarea
+                      id="constraints"
+                      placeholder="e.g., Must run on AWS, No external dependencies, Performance requirements..."
+                      value={constraints}
+                      onChange={(e) => setConstraints(e.target.value)}
+                      className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                    />
+                  </div>
+                  <Button
+                    onClick={handlePlanPhase}
+                    disabled={!techStack.trim() || isProcessingPhase}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isProcessingPhase ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating Plan...
+                      </>
+                    ) : (
+                      'Generate Technical Plan'
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Phase 3: Tasks */}
+            {activeTab === 'tasks' && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray border-2 border-blue-500">
+                <CardHeader>
+                  <CardTitle className="text-figma-text-primary">Phase 3: Task Breakdown</CardTitle>
+                  <CardDescription className="text-figma-text-secondary">
+                    Generate actionable implementation tasks based on your specification and plan.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-4">
+                    <div className="flex space-x-3">
+                      <div
+                        onClick={() => setWorkflowMode('breakdown')}
+                        className={`flex-1 relative cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                          workflowMode === 'breakdown' 
+                            ? 'border-green-500 bg-green-500/10' 
+                            : 'border-figma-light-gray bg-figma-dark-gray hover:border-green-400'
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`font-medium ${workflowMode === 'breakdown' ? 'text-white' : 'text-figma-text-primary'}`}>
+                              Task Breakdown
+                            </span>
+                            <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full font-medium">
+                              Recommended
+                            </span>
+                          </div>
+                          <span className="text-xs text-figma-text-secondary">
+                            Structured, actionable tasks with detailed acceptance criteria
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => setWorkflowMode('oneshot')}
+                        className={`flex-1 relative cursor-pointer rounded-lg border-2 p-4 transition-all ${
+                          workflowMode === 'oneshot' 
+                            ? 'border-yellow-500 bg-yellow-500/10' 
+                            : 'border-figma-light-gray bg-figma-dark-gray hover:border-yellow-400'
+                        }`}
+                      >
+                        <div className="flex flex-col">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`font-medium ${workflowMode === 'oneshot' ? 'text-white' : 'text-figma-text-primary'}`}>
+                              One-Shot
+                            </span>
+                            <span className="text-xs bg-yellow-500 text-black px-2 py-1 rounded-full font-medium">
+                              Not Recommended
+                            </span>
+                          </div>
+                          <span className="text-xs text-figma-text-secondary">
+                            Single comprehensive task, less structured
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-sm text-figma-text-secondary bg-figma-dark-gray/50 p-3 rounded-lg">
+                      <p>💡 <strong>Task Breakdown</strong> follows spec-kit methodology with structured, detailed tasks that improve implementation quality and learning outcomes.</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleTasksPhase}
+                    disabled={isProcessingPhase}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isProcessingPhase ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating Tasks...
+                      </>
+                    ) : (
+                      'Generate Implementation Tasks'
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Show content/plan when appropriate */}
+            {(activeTab === 'plan' || activeTab === 'tasks') && spec?.plan && (
+              <Card className="bg-figma-medium-gray border-figma-light-gray">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-figma-text-primary">Technical Plan</CardTitle>
+                      <CardDescription className="text-figma-text-secondary">
+                        Generated implementation plan
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPlanExpanded(!planExpanded)}
+                      className="text-figma-text-secondary hover:text-white"
+                    >
+                      {planExpanded ? (
+                        <>
+                          <ChevronUp className="h-4 w-4 mr-1" />
+                          Collapse
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-1" />
+                          Expand
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
                   <div className="mt-2" data-color-mode="dark">
                     <MDEditor
                       value={content}
                       onChange={(val: string | undefined) => setContent(val || '')}
-                      preview="edit"
-                      hideToolbar={false}
-                      textareaProps={{
-                        placeholder: isEnhancing ? 'Enhancing… streaming from Azure OpenAI (content will appear here)…' : 'Write your specification in markdown...',
-                        style: {
-                          fontSize: 14,
-                          backgroundColor: '#374151',
-                          color: '#F9FAFB'
-                        }
-                      }}
-                      height={300}
+                      preview="preview"
+                      hideToolbar={true}
+                      height={planExpanded ? 600 : 300}
                     />
                   </div>
+                </CardContent>
+              </Card>
+            )}
 
-                  {isEnhancing && (
-                    <p className="text-xs text-figma-text-secondary mt-2">Streaming enhancement from Azure OpenAI…</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Customization Details card removed per request */}
-
-            <Card className="bg-figma-medium-gray border-figma-light-gray">
-              <CardHeader>
-                <CardTitle className="text-figma-text-primary flex items-center">
-                  <GitBranch className="h-5 w-5 mr-2" />
-                  Workflow Configuration
-                </CardTitle>
-                <CardDescription className="text-figma-text-secondary">
-                  Choose how to approach the implementation task
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex space-x-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setWorkflowMode('breakdown')}
-                    className={`flex-1 ${workflowMode === 'breakdown' ? 'bg-white text-black hover:bg-gray-100 border-white' : 'bg-figma-dark-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray'}`}
-                  >
-                    Task Breakdown
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setWorkflowMode('oneshot')}
-                    className={`flex-1 ${workflowMode === 'oneshot' ? 'bg-white text-black hover:bg-gray-100 border-white' : 'bg-figma-dark-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray'}`}
-                  >
-                    One-Shot
-                  </Button>
-                </div>
-
-                {workflowMode === 'breakdown' && (
-                  <div className="space-y-4">
-                    <Button
-                      onClick={generateTaskBreakdown}
-                      disabled={!title.trim() || isGeneratingTasks}
-                      className="w-full"
-                    >
-                      {isGeneratingTasks ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Generating Tasks...
-                        </>
-                      ) : (
-                        'Generate Task Breakdown'
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {(isGeneratingTasks || taskBreakdown.length > 0) && (
+            {/* Task List - only show in tasks tab */}
+            {activeTab === 'tasks' && (isGeneratingTasks || taskBreakdown.length > 0) && (
               <Card className="bg-figma-medium-gray border-figma-light-gray">
                 <CardHeader>
                   <CardTitle className="text-figma-text-primary">Task List</CardTitle>
@@ -821,55 +1132,80 @@ export function SpecWorkbench() {
             )}
           </div>
 
-          <div className="space-y-6">
-            <SWEAgentSelection
-              selectedAgent={selectedAgent}
-              setSelectedAgent={setSelectedAgent}
-              apiKey={apiKey}
-              setApiKey={setApiKey}
-              endpoint={endpoint}
-              setEndpoint={setEndpoint}
-              // Pass title so validation can use it on Spec page
-              customization={{ ...customization, title }}
-              workflowMode={workflowMode}
-              selectedTasks={selectedTasks}
-              isAssigningTasks={isAssigningTasks}
-              onAssignToSWEAgent={assignToSWEAgent}
-              // Validate against spec title (always present here)
-              validationField="title"
-            />
+          {/* Show sidebar button when collapsed */}
+          {sidebarCollapsed && taskBreakdown.length > 0 && (
+            <Button
+              onClick={() => setSidebarCollapsed(false)}
+              className="fixed right-4 top-1/2 transform -translate-y-1/2 z-40 bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+              size="sm"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              SWE Agent
+            </Button>
+          )}
 
-            {isAssigningTasks && (
-              <Card className="bg-figma-medium-gray border-figma-light-gray">
-                <CardHeader>
-                  <CardTitle className="text-figma-text-primary flex items-center">
-                    <Settings className="h-5 w-5 mr-2" />
-                    Assignment In Progress
-                  </CardTitle>
-                  <CardDescription className="text-figma-text-secondary">Starting selected coding agent…</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="text-sm text-figma-text-secondary space-y-2">
-                    <li className={`${assignmentPhase !== 'idle' ? 'text-white' : ''}`}>1. Start selected coding agent</li>
-                  </ul>
-                </CardContent>
-              </Card>
-            )}
-
-            {assignmentResponses.length > 0 && (
-              <div className="space-y-4">
-                {assignmentResponses.map((resp, idx) => (
-                  <Card key={idx} className="bg-figma-medium-gray border-figma-light-gray">
-                    <CardHeader>
-                      <CardTitle className="text-figma-text-primary">Assignment Result #{idx + 1}</CardTitle>
-                    </CardHeader>
-                    <CardContent ref={idx === assignmentResponses.length - 1 ? responseRef : undefined}>
-                      <AssignmentResult result={resp} />
-                    </CardContent>
-                  </Card>
-                ))}
+          {/* Collapsible Right Sidebar for SWE Agent Selection */}
+          <div className={`fixed right-0 top-0 h-full w-80 bg-figma-black border-l border-figma-light-gray transform transition-transform duration-300 ease-in-out z-50 ${sidebarCollapsed ? 'translate-x-full' : 'translate-x-0'} overflow-y-auto`}>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-figma-text-primary">SWE Agent</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="text-figma-text-secondary hover:text-white"
+                >
+                  ×
+                </Button>
               </div>
-            )}
+              
+              <SWEAgentSelection
+                selectedAgent={selectedAgent}
+                setSelectedAgent={setSelectedAgent}
+                apiKey={apiKey}
+                setApiKey={setApiKey}
+                endpoint={endpoint}
+                setEndpoint={setEndpoint}
+                customization={{ ...customization, title }}
+                workflowMode={workflowMode}
+                selectedTasks={selectedTasks}
+                isAssigningTasks={isAssigningTasks}
+                onAssignToSWEAgent={assignToSWEAgent}
+                validationField="title"
+              />
+
+              {isAssigningTasks && (
+                <Card className="bg-figma-medium-gray border-figma-light-gray">
+                  <CardHeader>
+                    <CardTitle className="text-figma-text-primary flex items-center">
+                      <Settings className="h-5 w-5 mr-2" />
+                      Assignment In Progress
+                    </CardTitle>
+                    <CardDescription className="text-figma-text-secondary">Starting selected coding agent…</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="text-sm text-figma-text-secondary space-y-2">
+                      <li className={`${assignmentPhase !== 'idle' ? 'text-white' : ''}`}>1. Start selected coding agent</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {assignmentResponses.length > 0 && (
+                <div className="space-y-4">
+                  {assignmentResponses.map((resp, idx) => (
+                    <Card key={idx} className="bg-figma-medium-gray border-figma-light-gray">
+                      <CardHeader>
+                        <CardTitle className="text-figma-text-primary">Assignment Result #{idx + 1}</CardTitle>
+                      </CardHeader>
+                      <CardContent ref={idx === assignmentResponses.length - 1 ? responseRef : undefined}>
+                        <AssignmentResult result={resp} />
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

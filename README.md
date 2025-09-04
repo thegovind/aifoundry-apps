@@ -26,6 +26,9 @@ AIfoundry.app provides a comprehensive platform for solution engineers to:
 - **MCP (Model Context Protocol)**: Seamless integration between different AI agents
 - **Azure Marketplace**: Deployment and distribution platform for agent services
 
+### Backend Technologies
+- **Spec-Kit**: Powered by [GitHub's spec-kit](https://github.com/github/spec-kit) for managing and serving agent specifications
+
 ## Features
 
 - **Agent Template Gallery**: Browse and discover pre-built agent templates from Azure AI Foundry
@@ -36,7 +39,7 @@ AIfoundry.app provides a comprehensive platform for solution engineers to:
 
 ## Architecture
 
-- **Backend**: FastAPI with Python, integrated with Azure AI Foundry services
+- **Backend**: FastAPI with Python, integrated with Azure AI Foundry services and powered by [spec-kit](https://github.com/github/spec-kit) for agent specification management
 - **Frontend**: Vite + React + TypeScript + Tailwind CSS
 - **Agent Layer**: MCP-based integration with multiple AI agents (Copilot, Devin, Codex)
 - **Deployment**: Azure Container Apps with marketplace integrations
@@ -162,9 +165,3 @@ This project is in active development. Contributions, feedback, and suggestions 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**🚀 Live Demo**: [aifoundry.app](https://aifoundry.app)  
-**🔗 Devin Session**: https://app.devin.ai/sessions/73bc742bdcf84ca7adb544e44eaf542f  
-**👤 Requested by**: @thegovind

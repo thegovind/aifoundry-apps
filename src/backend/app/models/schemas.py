@@ -78,9 +78,28 @@ class Spec(BaseModel):
     created_at: str
     updated_at: str
     tags: List[str]
+    # Spec-kit phases
+    phase: str = "specification"  # specification, plan, tasks, completed
+    specification: Optional[str] = None  # Requirements and what to build
+    plan: Optional[str] = None  # Technical implementation plan
+    tasks: Optional[List[Dict[str, Any]]] = None  # Actionable implementation tasks
+    branch_name: Optional[str] = None  # Git branch for this spec
+    feature_number: Optional[str] = None  # Unique feature number
 
 class SpecCreateRequest(BaseModel):
     title: str
     description: str
     content: str
     tags: List[str] = []
+
+class SpecifyRequest(BaseModel):
+    requirements: str
+    context: Optional[str] = None
+
+class PlanRequest(BaseModel):
+    tech_stack: str
+    architecture: Optional[str] = None
+    constraints: Optional[str] = None
+
+class TasksRequest(BaseModel):
+    mode: str = "breakdown"  # breakdown or oneshot
