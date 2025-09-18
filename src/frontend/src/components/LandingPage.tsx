@@ -1,4 +1,4 @@
-import { ArrowRight, Zap, Settings, FileText } from 'lucide-react'
+import { ArrowRight, Zap, Settings } from 'lucide-react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Link } from 'react-router-dom'
@@ -16,27 +16,55 @@ export function LandingPage() {
           </p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          {/* Spec-Kit: make prominent and wider */}
+          <Card className="lg:col-span-2 bg-figma-medium-gray border-figma-light-gray hover:border-emerald-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-emerald-400/10">
             <CardHeader className="text-center pb-4">
-              <div className="w-16 h-16 bg-orange-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="h-8 w-8 text-orange-400" />
+              <div className="w-20 h-20 bg-figma-black rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg ring-2 ring-emerald-400/40">
+                <span className="text-6xl drop-shadow-sm" aria-hidden>🌱</span>
               </div>
-              <CardTitle className="text-2xl text-figma-text-primary">Spec-Kit Frontend</CardTitle>
-              <CardDescription className="text-figma-text-secondary">
-                Build high-quality software faster with Spec-Driven Development methodology
+              <CardTitle className="text-2xl text-figma-text-primary mb-2">Specs</CardTitle>
+              <CardDescription className="text-figma-text-secondary text-base">
+                <a href="https://github.com/github/spec-kit" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline">Spec-Kit</a> inspired approach to Spec-Driven Development that transforms specs into apps and agents
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
-              <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
-                <li>• /specify - Define requirements & goals</li>
-                <li>• /plan - Generate technical architecture</li>
-                <li>• /tasks - Create actionable breakdown</li>
-              </ul>
-              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors">
+              {/* Wider step showcase */}
+              <div className="bg-figma-black/60 rounded-lg p-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-4 hover:border-emerald-400/40 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-7 h-7 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                        <span className="text-emerald-300 text-xs font-bold">1</span>
+                      </div>
+                      <span className="text-emerald-300 font-semibold">/specify</span>
+                    </div>
+                    <div className="text-sm text-figma-text-secondary">Define the problem space, outcomes, and constraints.</div>
+                  </div>
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-4 hover:border-emerald-400/40 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-7 h-7 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                        <span className="text-emerald-300 text-xs font-bold">2</span>
+                      </div>
+                      <span className="text-emerald-300 font-semibold">/plan</span>
+                    </div>
+                    <div className="text-sm text-figma-text-secondary">Design technical architecture and governance contracts.</div>
+                  </div>
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-4 hover:border-emerald-400/40 transition-colors">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-7 h-7 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                        <span className="text-emerald-300 text-xs font-bold">3</span>
+                      </div>
+                      <span className="text-emerald-300 font-semibold">/tasks</span>
+                    </div>
+                    <div className="text-sm text-figma-text-secondary">Break down into actionable, testable implementation tasks.</div>
+                  </div>
+                </div>
+              </div>
+              <Button asChild className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 border-0 shadow-lg hover:shadow-xl transition-all duration-300 font-medium py-3">
                 <Link to="/specs" className="flex items-center justify-center">
                   Start Spec-Driven Development
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
             </CardContent>
@@ -55,7 +83,7 @@ export function LandingPage() {
             <CardContent className="text-center">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
                 <li>• Ready-to-use AI solutions</li>
-                <li>• Multiple languages & frameworks</li>
+                <li>• Multiple languages &amp; frameworks</li>
                 <li>• SWE agent integration</li>
               </ul>
               <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors">
@@ -82,8 +110,8 @@ export function LandingPage() {
             </CardHeader>
             <CardContent className="text-center">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
-                <li>• Prompt Chaining & Routing</li>
-                <li>• Parallelization & Orchestration</li>
+                <li>• Prompt Chaining &amp; Routing</li>
+                <li>• Parallelization &amp; Orchestration</li>
                 <li>• Evaluator-Optimizer patterns</li>
               </ul>
               <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors">
