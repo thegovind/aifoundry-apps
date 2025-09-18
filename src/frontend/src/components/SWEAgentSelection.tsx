@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react'
-import { SiOpenai, SiReplit, SiGithub } from 'react-icons/si'
+import { SiOpenai, SiGithub } from 'react-icons/si'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
@@ -40,6 +40,14 @@ const CognitionLogo = ({ className }: { className?: string }) => (
   </svg>
 )
 
+const AnthropicLogo = ({ className }: { className?: string }) => (
+  <div className={`${className} flex items-center justify-center bg-black rounded`}>
+    <svg viewBox="0 0 24 24" className="w-full h-full" fill="white">
+      <path d="M12 2L4 22h3.5l1.5-4h6l1.5 4H20L12 2zm-2.5 12l2.5-6.5L14.5 14h-5z"/>
+    </svg>
+  </div>
+)
+
 const sweAgents: SWEAgent[] = [
   {
     id: 'github-copilot',
@@ -69,14 +77,13 @@ const sweAgents: SWEAgent[] = [
     instructions: 'Get your Devin API key from https://app.devin.ai/settings/api-keys and paste it below.'
   },
   {
-    id: 'replit',
-    name: 'Replit Agent',
-    description: 'Coming Soon on Azure Marketplace',
-    icon: <SiReplit className="w-6 h-6 text-white" />,
+    id: 'claude',
+    name: 'Claude Code Agent',
+    description: 'Anthropic\'s Claude running in GitHub Actions for advanced code generation',
+    icon: <AnthropicLogo className="w-6 h-6 text-white" />,
     requiresApiKey: true,
-    configType: 'oauth',
-    comingSoon: true,
-    instructions: 'Sign in with GitHub to use Replit Agent for seamless code execution and collaboration.'
+    configType: 'api-key',
+    instructions: 'Get your Anthropic API key from https://console.anthropic.com/settings/keys and paste it below.'
   }
 ]
 
@@ -110,7 +117,7 @@ export function SWEAgentSelection({
       <CardHeader>
         <CardTitle className="text-figma-text-primary">SWE Agent Selection</CardTitle>
         <CardDescription className="text-figma-text-secondary">
-          Choose an AI agent to handle the implementation
+          Choose a cloud-based AI agent that runs in GitHub Actions to handle the implementation
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
