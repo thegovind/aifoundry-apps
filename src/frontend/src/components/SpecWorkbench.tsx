@@ -182,6 +182,17 @@ export function SpecWorkbench() {
     fetchSpec()
   }, [fetchSpec])
 
+  useEffect(() => {
+    if (isNewSpec && !title && !description) {
+      setTitle("Task Management System")
+      setDescription("A modern task management application that helps users organize, prioritize, and complete their tasks efficiently.")
+      setTechStack("React, Node.js, PostgreSQL")
+      if (!content || content.trim().length === 0) {
+        insertSpecTemplate()
+      }
+    }
+  }, [isNewSpec, title, description, content])
+
   const saveSpec = async (): Promise<Spec | null> => {
     setSaving(true)
     try {
