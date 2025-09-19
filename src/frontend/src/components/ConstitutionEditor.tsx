@@ -10,6 +10,7 @@ interface ConstitutionEditorProps {
   isOpen: boolean
   onClose: () => void
   specId?: string
+  initialConstitution?: string
 }
 
 interface ConstitutionalArticle {
@@ -27,17 +28,21 @@ interface ConstitutionalData {
   integration_first: ConstitutionalArticle
 }
 
-export function ConstitutionEditor({ isOpen, onClose, specId }: ConstitutionEditorProps) {
-  const [constitution, setConstitution] = useState('')
+export function ConstitutionEditor({ isOpen, onClose, specId, initialConstitution }: ConstitutionEditorProps) {
+  const [constitution, setConstitution] = useState(initialConstitution || '')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
   useEffect(() => {
     if (isOpen) {
-      fetchConstitution()
+      if (initialConstitution) {
+        setConstitution(initialConstitution)
+      } else {
+        fetchConstitution()
+      }
     }
-  }, [isOpen])
+  }, [isOpen, initialConstitution])
 
   const fetchConstitution = async () => {
     setLoading(true)

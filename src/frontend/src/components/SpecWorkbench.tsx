@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Wrench, GitBranch, Loader2, Save, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Sparkles, Edit } from 'lucide-react'
+import { ArrowLeft, Wrench, GitBranch, Loader2, Save, CheckCircle, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Sparkles, Edit } from 'lucide-react'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { toast } from '@/hooks/use-toast'
@@ -96,32 +96,35 @@ export function SpecWorkbench() {
     use_a2a: false
   })
 
-  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
+  const [selectedTasks] = useState<Set<string>>(new Set())
   const [selectedAgent, setSelectedAgent] = useState<string>('')
   const [apiKey, setApiKey] = useState<string>('')
   const [endpoint, setEndpoint] = useState<string>('')
   const [githubPat, setGithubPat] = useState<string>('')
   const [preferImport, setPreferImport] = useState<boolean>(false)
-  const [showAdvanced, setShowAdvanced] = useState<boolean>(false)
+  const [showAdvanced] = useState<boolean>(false)
 
   // Agent Configuration (matches CLI --ai flag)
   const [ignoreAgentTools, setIgnoreAgentTools] = useState<boolean>(false)
   const [projectName, setProjectName] = useState<string>('')
   const [agentConfigured, setAgentConfigured] = useState<boolean>(false)
 
-  const [activeTab, setActiveTab] = useState<'agent' | 'specify' | 'plan' | 'tasks'>('agent')
+  const [activeTab, setActiveTab] = useState<'constitution' | 'agent' | 'specify' | 'plan' | 'tasks'>('constitution')
 
   const [specPhase, setSpecPhase] = useState<'specification' | 'plan' | 'tasks' | 'completed'>('specification')
   const [requirements, setRequirements] = useState('')
   const [planContent, setPlanContent] = useState('')
   const [taskBreakdown, setTaskBreakdown] = useState<TaskBreakdown[]>([])
-  const [workflowMode, setWorkflowMode] = useState<'breakdown' | 'oneshot'>('breakdown')
+  const [workflowMode] = useState<'breakdown' | 'oneshot'>('breakdown')
   const [isAssigningTasks, setIsAssigningTasks] = useState(false)
   const [assignmentPhase, setAssignmentPhase] = useState<'idle' | 'starting'>('idle')
-  const [assignmentResponses, setAssignmentResponses] = useState<any[]>([])
+  const [assignmentResponses, setAssignmentResponses] = useState<Record<string, unknown>[]>([])
   const [isAgentPanelExpanded, setIsAgentPanelExpanded] = useState(true)
   const [isBasicDetailsCollapsed, setIsBasicDetailsCollapsed] = useState(false)
   const [isConstitutionEditorOpen, setIsConstitutionEditorOpen] = useState(false)
+  const [constitutionContent, setConstitutionContent] = useState('')
+  const [isPopulatingConstitution, setIsPopulatingConstitution] = useState(false)
+  const [constitutionPopulated, setConstitutionPopulated] = useState(false)
 
   useEffect(() => {
     if (title && description && !isBasicDetailsCollapsed) {
@@ -551,6 +554,51 @@ export function SpecWorkbench() {
     }
   }
 
+  const handlePopulateConstitution = async () => {
+    if (!title || !description) {
+      toast({
+        title: "Project details required",
+        description: "Please provide project title and description before generating constitution",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsPopulatingConstitution(true)
+    try {
+      const response = await fetch(`${apiUrl}/api/specs/constitution/populate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_name: title,
+          project_description: description,
+          tech_stack: techStack || "Modern web application"
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setConstitutionContent(result.constitution)
+        setConstitutionPopulated(true)
+        toast({
+          title: "Constitution Generated",
+          description: "Constitutional framework has been generated successfully"
+        })
+      } else {
+        throw new Error('Failed to generate constitution')
+      }
+    } catch (error) {
+      console.error('Error generating constitution:', error)
+      toast({
+        title: "Error",
+        description: "Failed to generate constitutional framework",
+        variant: "destructive"
+      })
+    } finally {
+      setIsPopulatingConstitution(false)
+    }
+  }
+
   const assignToSWEAgent = async () => {
     setIsAssigningTasks(true)
     setAssignmentPhase('starting')
@@ -693,8 +741,20 @@ export function SpecWorkbench() {
               <CardContent>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => setActiveTab('agent')}
+                    onClick={() => setActiveTab('constitution')}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                      activeTab === 'constitution' ? 'bg-blue-600 text-white' : 
+                      constitutionPopulated ? 'bg-green-600 text-white hover:bg-green-500' :
+                      'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                    }`}
+                  >
+                    <span className="mr-2">⚖️</span>
+                    Constitution
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('agent')}
+                    disabled={!constitutionPopulated}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                       activeTab === 'agent' ? 'bg-blue-600 text-white' : 
                       agentConfigured ? 'bg-green-600 text-white hover:bg-green-500' :
                       'bg-gray-600 text-gray-300 hover:bg-gray-500'
@@ -1069,7 +1129,7 @@ Avoid:
                     /tasks - Create Actionable Implementation Tasks
                   </CardTitle>
                   <CardDescription className="text-figma-text-secondary">
-                    Break down the plan into actionable tasks that can be assigned to your configured agent ({selectedAiAgent || 'selected agent'}).
+                    Break down the plan into actionable tasks that can be assigned to your configured agent ({selectedAgent || 'selected agent'}).
                   </CardDescription>
                   <div className="mt-3 p-3 bg-blue-900/20 border border-blue-800/30 rounded-lg">
                     <p className="text-xs text-blue-300/80">
@@ -1337,10 +1397,123 @@ Avoid:
         )}
 
         {/* Constitution Editor Modal */}
-        <ConstitutionEditor
-          isOpen={isConstitutionEditorOpen}
-          onClose={() => setIsConstitutionEditorOpen(false)}
+        {activeTab === 'constitution' && (
+          <Card className="bg-figma-medium-gray border-figma-light-gray">
+            <CardHeader>
+              <CardTitle className="text-figma-text-primary flex items-center gap-2">
+                <span>⚖️</span>
+                Constitutional Foundation
+              </CardTitle>
+              <CardDescription className="text-figma-text-secondary">
+                Generate the constitutional framework that will govern your project's development practices, inspired by <a href="https://github.com/github/spec-kit" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">spec-kit</a> methodology.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!constitutionPopulated ? (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-900/20 border border-blue-800/30 rounded-lg">
+                    <h4 className="text-sm font-medium text-blue-300 mb-2">Constitutional Approach</h4>
+                    <p className="text-xs text-blue-300/80">
+                      The constitutional foundation enforces architectural discipline by establishing core principles that govern all development decisions. This ensures consistency, quality, and maintainability across your project.
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-white">Project Title</Label>
+                      <Input
+                        placeholder="e.g., Task Management System"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white">Project Description</Label>
+                      <textarea
+                        placeholder="Describe your project's purpose, goals, and key features..."
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        rows={3}
+                        className="w-full bg-figma-input-gray border border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-white">Tech Stack (Optional)</Label>
+                      <Input
+                        placeholder="e.g., React, Node.js, PostgreSQL"
+                        value={techStack}
+                        onChange={(e) => setTechStack(e.target.value)}
+                        className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handlePopulateConstitution}
+                    disabled={isPopulatingConstitution || !title || !description}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isPopulatingConstitution ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Generating Constitutional Framework...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate Constitutional Framework
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-green-400">
+                      <CheckCircle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Constitutional Framework Generated</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsConstitutionEditorOpen(true)}
+                      className="bg-figma-input-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray/20 hover:text-white"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Edit Constitution
+                    </Button>
+                  </div>
+                  
+                  <div className="bg-figma-dark-gray rounded-md p-4 max-h-96 overflow-y-auto">
+                    <pre className="text-xs text-figma-text-primary whitespace-pre-wrap font-mono">
+                      {constitutionContent}
+                    </pre>
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      setActiveTab('agent')
+                      toast({
+                        title: "Ready for Agent Setup",
+                        description: "Constitutional foundation established. Proceed to configure your AI agent."
+                      })
+                    }}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Continue to Agent Setup →
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <ConstitutionEditor 
+          isOpen={isConstitutionEditorOpen} 
+          onClose={() => setIsConstitutionEditorOpen(false)} 
           specId={spec?.id}
+          initialConstitution={constitutionContent}
         />
       </div>
     </div>
