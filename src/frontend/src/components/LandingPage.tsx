@@ -18,7 +18,7 @@ export function LandingPage() {
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {/* Spec-Kit: now single column width */}
-          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-emerald-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-emerald-400/10">
+          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-emerald-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-emerald-400/10 flex flex-col h-full">
             <CardHeader className="text-center pb-4">
               <div className="w-20 h-20 bg-figma-black rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg ring-2 ring-emerald-400/40">
                 <span className="text-6xl drop-shadow-sm" aria-hidden>🌱</span>
@@ -28,7 +28,7 @@ export function LandingPage() {
                 <a href="https://github.com/github/spec-kit" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline">Spec-Kit</a> inspired approach to Spec-Driven Development that transforms specs into apps and agents
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent className="text-center flex-1 flex flex-col justify-between">
               {/* Condensed step showcase */}
               <div className="bg-figma-black/60 rounded-lg p-4 mb-4">
                 <div className="grid grid-cols-1 gap-2 text-left">
@@ -61,7 +61,7 @@ export function LandingPage() {
                   </div>
                 </div>
               </div>
-              <Button asChild className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 border-0 shadow-lg hover:shadow-xl transition-all duration-300 font-medium py-3">
+              <Button asChild className="w-full bg-gradient-to-r from-emerald-500 to-green-600 text-white hover:from-emerald-600 hover:to-green-700 border-0 shadow-lg hover:shadow-xl transition-all duration-300 font-medium py-3 mt-auto">
                 <Link to="/specs" className="flex items-center justify-center">
                   Start Spec-Driven Development
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -70,7 +70,7 @@ export function LandingPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors">
+          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors flex flex-col h-full">
             <CardHeader className="text-center pb-4">
               <div className="w-16 h-16 bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Settings className="h-8 w-8 text-green-400" />
@@ -80,13 +80,13 @@ export function LandingPage() {
                 Browse and configure pre-built AI solution templates for rapid deployment
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent className="text-center flex-1 flex flex-col justify-between">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
                 <li>• Ready-to-use AI solutions</li>
                 <li>• Multiple languages & frameworks</li>
                 <li>• SWE agent integration</li>
               </ul>
-              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors py-3">
+              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors py-3 mt-auto">
                 <Link to="/templates" className="flex items-center justify-center">
                   Configure Templates
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -95,7 +95,7 @@ export function LandingPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors">
+          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-figma-text-secondary transition-colors flex flex-col h-full">
             <CardHeader className="text-center pb-4">
               <div className="w-16 h-16 bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Zap className="h-8 w-8 text-blue-400" />
@@ -108,13 +108,13 @@ export function LandingPage() {
                 Start with proven AI agent patterns and tailor them to your specific workflow
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent className="text-center flex-1 flex flex-col justify-between">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
                 <li>• Prompt Chaining & Routing</li>
                 <li>• Parallelization & Orchestration</li>
                 <li>• Evaluator-Optimizer patterns</li>
               </ul>
-              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors py-3">
+              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors py-3 mt-auto">
                 <Link to="/patterns" className="flex items-center justify-center">
                   Design Patterns
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -123,7 +123,7 @@ export function LandingPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-purple-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-purple-400/10">
+          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-purple-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-purple-400/10 flex flex-col h-full">
             <CardHeader className="text-center pb-4">
               <div className="w-16 h-16 bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl" aria-hidden>🧠</span>
@@ -136,14 +136,14 @@ export function LandingPage() {
                 Optimize well-defined workflows with RL on small language models using GRPO and post-training techniques
               </CardDescription>
             </CardHeader>
-            <CardContent className="text-center">
+            <CardContent className="text-center flex-1 flex flex-col justify-between">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
                 <li>• SFT warmup training</li>
                 <li>• GRPO optimization</li>
                 <li>• Azure ML deployment</li>
                 <li>• Phi-4 & Unsloth integration</li>
               </ul>
-              <Button asChild className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 border-0 shadow-lg hover:shadow-xl transition-all duration-300 font-medium py-3">
+              <Button asChild className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 border-0 shadow-lg hover:shadow-xl transition-all duration-300 font-medium py-3 mt-auto">
                 <Link to="/post-training" className="flex items-center justify-center">
                   Start Post-training
                   <ArrowRight className="ml-2 h-4 w-4" />
