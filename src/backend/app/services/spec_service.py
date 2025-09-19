@@ -50,6 +50,7 @@ class SpecService:
                     offer_throughput=400
                 )
                 logger.info("Cosmos DB initialized successfully")
+                self._init_fallback_storage()
             else:
                 logger.warning("Cosmos DB not configured, falling back to in-memory storage")
                 self._init_fallback_storage()
@@ -71,9 +72,10 @@ class SpecService:
         logger.info("Initialized in-memory storage for specs")
     
     def get_all_specs(self) -> List[Spec]:
+        if hasattr(self, '_memory_specs') and self._memory_specs:
+            return list(self._memory_specs.values())
+        
         if not self._container:
-            if hasattr(self, '_memory_specs'):
-                return list(self._memory_specs.values())
             return []
         
         try:
