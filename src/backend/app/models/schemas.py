@@ -132,3 +132,13 @@ class SystemCheckResponse(BaseModel):
     status: str
     checks: Dict[str, bool]
     messages: List[str]
+
+class ConstitutionPopulateRequest(BaseModel):
+    project_name: str
+    project_description: str
+    tech_stack: Optional[str] = ""
+
+class ConstitutionPopulateResponse(BaseModel):
+    status: str
+    constitution: str
+    message: str
