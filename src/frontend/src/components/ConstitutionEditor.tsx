@@ -71,11 +71,11 @@ export function ConstitutionEditor({ isOpen, onClose, specId, initialConstitutio
     let markdown = '# Constitutional Framework\n\n'
     markdown += 'This document defines the constitutional principles that govern spec-driven development.\n\n'
 
-    Object.entries(data).forEach(([key, article]) => {
+    Object.entries(data).forEach(([, article]) => {
       markdown += `## ${article.title}\n\n`
       markdown += `${article.description}\n\n`
       markdown += '**Checks:**\n'
-      article.checks.forEach(check => {
+      article.checks.forEach((check: string) => {
         markdown += `- ${check}\n`
       })
       markdown += '\n'

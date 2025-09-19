@@ -1175,22 +1175,15 @@ async def populate_constitution(request: ConstitutionPopulateRequest):
 
         system_prompt = """You are an AI assistant that creates constitutional frameworks for software projects based on spec-kit methodology. Your task is to generate a comprehensive constitutional document that enforces architectural discipline and development practices."""
 
-        user_prompt = f"""Create a constitutional framework for the following project using the spec-kit methodology:
-
-Project Name: {project_name}
-Description: {project_description}
-Tech Stack: {tech_stack}
-
-Generate a constitutional framework in markdown format that includes:
-
-# Constitutional Framework
+        # Use the exact spec-kit template structure from GitHub
+        spec_kit_template = """# {project_name} Constitution
 
 *Inspired by [spec-kit](https://github.com/github/spec-kit) - A constitutional approach to spec-driven development*
 
 This document defines the constitutional principles that govern spec-driven development for {project_name}.
 
 
-Every feature starts as a standalone library. Libraries must be self-contained, independently testable, and documented.
+Every feature starts as a standalone library. Libraries must be self-contained, independently testable, and documented. Clear purpose required - no organizational-only libraries.
 
 **Checks:**
 - Using existing libraries over custom implementations
@@ -1198,7 +1191,7 @@ Every feature starts as a standalone library. Libraries must be self-contained, 
 - Minimal dependencies specified
 - Libraries are self-contained and testable
 
-Every library exposes functionality via CLI. Implements a text-based input/output protocol.
+Every library exposes functionality via CLI. Text in/out protocol: stdin/args → stdout, errors → stderr. Support JSON + human-readable formats.
 
 **Checks:**
 - Command-line interface defined
@@ -1206,7 +1199,7 @@ Every library exposes functionality via CLI. Implements a text-based input/outpu
 - Proper argument parsing implemented
 - Text I/O protocol followed (stdin/args → stdout)
 
-Test-Driven Development (TDD) is mandatory. Workflow: Tests written → User approved → Tests fail → Implementation.
+Tests written → User approved → Tests fail → Implementation. Red-Green-Refactor cycle strictly enforced.
 
 **Checks:**
 - Unit tests defined before implementation
@@ -1214,7 +1207,7 @@ Test-Driven Development (TDD) is mandatory. Workflow: Tests written → User app
 - Integration tests included
 - Red-Green-Refactor cycle enforced
 
-Prioritizes integration tests in key areas: new library contract tests, contract change verification.
+Focus areas requiring integration tests: New library contract tests, contract changes, inter-service communication, shared schemas.
 
 **Checks:**
 - Integration tests for new library contracts
@@ -1222,7 +1215,7 @@ Prioritizes integration tests in key areas: new library contract tests, contract
 - Inter-service communication validation
 - Real environment testing over mocks
 
-Emphasizes debuggability through text I/O, structured logging, and "start simple" philosophy.
+Text I/O ensures debuggability. Structured logging required. Or: MAJOR.MINOR.BUILD format. Or: Start simple, YAGNI principles.
 
 **Checks:**
 - Structured logging implemented
@@ -1238,12 +1231,52 @@ Maximum 3 projects, no future-proofing patterns, direct framework usage.
 - Simple, direct implementation approach
 - Using frameworks directly with minimal wrapping
 
+## Technology Stack Considerations
 
-When amending this constitution, ensure all dependent documents are updated:
+For {tech_stack}:
+- Prioritize established libraries and frameworks
+- Implement comprehensive testing at all levels
+- Maintain clear separation of concerns
+- Follow industry best practices for the chosen stack
 
-- [ ] Plan templates - Update Constitution Check section
-- [ ] Spec templates - Update if requirements/scope affected
-- [ ] Task templates - Update if new task types needed
+## Constitution Update Checklist
+
+When amending this constitution, ensure all dependent documents are updated to maintain consistency.
+
+
+When adding/modifying ANY article:
+- [ ] /templates/plan-template.md - Update Constitution Check section
+- [ ] /templates/spec-template.md - Update if requirements/scope affected
+- [ ] /templates/tasks-template.md - Update if new task types needed
+- [ ] /.claude/commands/plan.md - Update if planning process changes
+- [ ] /.claude/commands/tasks.md - Update if task generation affected
+- [ ] /CLAUDE.md - Update runtime development guidelines
+
+
+**Article I (Library-First):**
+- Ensure templates emphasize library creation
+- Update CLI command examples
+- Add libs.txt documentation requirements
+
+**Article II (CLI Interface):**
+- Update CLI flag requirements in templates
+- Update text I/O protocol examples
+
+**Article III (Test-First):**
+- Update test order in templates
+- Update TDD requirements
+
+**Article IV (Integration Testing):**
+- List integration test triggers
+- Update testing priorities
+
+**Article V (Observability):**
+- Add logging requirements
+- Update monitoring guidelines
+
+**Article VI (Simplicity):**
+- Update project limits
+- Update pattern prohibitions
 
 1. [ ] All templates reference new requirements
 2. [ ] Examples updated to match new rules
@@ -1257,10 +1290,28 @@ When amending this constitution, ensure all dependent documents are updated:
 - Mandatory migration planning for breaking changes
 
 ---
-*Based on spec-kit constitutional framework | Version: 1.0.0*
-*For more information: https://github.com/github/spec-kit*
+*Version: 2.1.1 | Ratified: 2025-07-16 | Last Amended: 2025-07-16*
+*For more information: https://github.com/github/spec-kit*"""
 
-Customize this framework specifically for the {project_name} project and {tech_stack} technology stack."""
+        user_prompt = f"""Using the spec-kit constitutional template, create a constitutional framework for the following project:
+
+Project Name: {project_name}
+Description: {project_description}
+Tech Stack: {tech_stack}
+
+Please populate the following template with project-specific details while maintaining the exact structure and all core principles:
+
+{spec_kit_template}
+
+Instructions:
+1. Replace {{project_name}} with the actual project name
+2. Replace {{tech_stack}} with the specific technology stack
+3. Customize the "Technology Stack Considerations" section for the specific tech stack
+4. Keep all six core principles exactly as defined in spec-kit methodology
+5. Maintain all checklist items and governance structure
+6. Ensure the constitution follows spec-kit update checklist requirements
+
+Generate the complete constitutional framework in markdown format."""
 
         logger.info(f"[populate_constitution] making responses call")
         response = client.responses.create(
@@ -1300,15 +1351,15 @@ Customize this framework specifically for the {project_name} project and {tech_s
     except Exception as e:
         logger.error(f"Error in populate_constitution: {e}")
         
-        # Fallback constitutional framework based on spec-kit methodology
-        fallback_constitution = f"""# Constitutional Framework
+        # Fallback constitutional framework using exact spec-kit template structure
+        fallback_constitution = f"""# {project_name} Constitution
 
 *Inspired by [spec-kit](https://github.com/github/spec-kit) - A constitutional approach to spec-driven development*
 
 This document defines the constitutional principles that govern spec-driven development for {project_name}.
 
 
-Every feature starts as a standalone library. Libraries must be self-contained, independently testable, and documented.
+Every feature starts as a standalone library. Libraries must be self-contained, independently testable, and documented. Clear purpose required - no organizational-only libraries.
 
 **Checks:**
 - Using existing libraries over custom implementations
@@ -1316,7 +1367,7 @@ Every feature starts as a standalone library. Libraries must be self-contained, 
 - Minimal dependencies specified
 - Libraries are self-contained and testable
 
-Every library exposes functionality via CLI. Implements a text-based input/output protocol.
+Every library exposes functionality via CLI. Text in/out protocol: stdin/args → stdout, errors → stderr. Support JSON + human-readable formats.
 
 **Checks:**
 - Command-line interface defined
@@ -1324,7 +1375,7 @@ Every library exposes functionality via CLI. Implements a text-based input/outpu
 - Proper argument parsing implemented
 - Text I/O protocol followed (stdin/args → stdout)
 
-Test-Driven Development (TDD) is mandatory. Workflow: Tests written → User approved → Tests fail → Implementation.
+Tests written → User approved → Tests fail → Implementation. Red-Green-Refactor cycle strictly enforced.
 
 **Checks:**
 - Unit tests defined before implementation
@@ -1332,7 +1383,7 @@ Test-Driven Development (TDD) is mandatory. Workflow: Tests written → User app
 - Integration tests included
 - Red-Green-Refactor cycle enforced
 
-Prioritizes integration tests in key areas: new library contract tests, contract change verification.
+Focus areas requiring integration tests: New library contract tests, contract changes, inter-service communication, shared schemas.
 
 **Checks:**
 - Integration tests for new library contracts
@@ -1340,7 +1391,7 @@ Prioritizes integration tests in key areas: new library contract tests, contract
 - Inter-service communication validation
 - Real environment testing over mocks
 
-Emphasizes debuggability through text I/O, structured logging, and "start simple" philosophy.
+Text I/O ensures debuggability. Structured logging required. Or: MAJOR.MINOR.BUILD format. Or: Start simple, YAGNI principles.
 
 **Checks:**
 - Structured logging implemented
@@ -1366,11 +1417,42 @@ For {tech_stack or "modern web applications"}:
 
 ## Constitution Update Checklist
 
-When amending this constitution, ensure all dependent documents are updated:
+When amending this constitution, ensure all dependent documents are updated to maintain consistency.
 
-- [ ] Plan templates - Update Constitution Check section
-- [ ] Spec templates - Update if requirements/scope affected
-- [ ] Task templates - Update if new task types needed
+
+When adding/modifying ANY article:
+- [ ] /templates/plan-template.md - Update Constitution Check section
+- [ ] /templates/spec-template.md - Update if requirements/scope affected
+- [ ] /templates/tasks-template.md - Update if new task types needed
+- [ ] /.claude/commands/plan.md - Update if planning process changes
+- [ ] /.claude/commands/tasks.md - Update if task generation affected
+- [ ] /CLAUDE.md - Update runtime development guidelines
+
+
+**Article I (Library-First):**
+- Ensure templates emphasize library creation
+- Update CLI command examples
+- Add libs.txt documentation requirements
+
+**Article II (CLI Interface):**
+- Update CLI flag requirements in templates
+- Update text I/O protocol examples
+
+**Article III (Test-First):**
+- Update test order in templates
+- Update TDD requirements
+
+**Article IV (Integration Testing):**
+- List integration test triggers
+- Update testing priorities
+
+**Article V (Observability):**
+- Add logging requirements
+- Update monitoring guidelines
+
+**Article VI (Simplicity):**
+- Update project limits
+- Update pattern prohibitions
 
 1. [ ] All templates reference new requirements
 2. [ ] Examples updated to match new rules
@@ -1384,7 +1466,7 @@ When amending this constitution, ensure all dependent documents are updated:
 - Mandatory migration planning for breaking changes
 
 ---
-*Based on spec-kit constitutional framework | Version: 1.0.0*
+*Version: 2.1.1 | Ratified: 2025-07-16 | Last Amended: 2025-07-16*
 *For more information: https://github.com/github/spec-kit*
 """
         

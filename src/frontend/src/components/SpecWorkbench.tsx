@@ -12,6 +12,7 @@ import AssignmentResult from './AssignmentResult'
 import { Checkbox } from './ui/checkbox'
 import { SWEAgentSelection } from './SWEAgentSelection'
 import { ConstitutionEditor } from './ConstitutionEditor'
+import { ConstitutionViewer } from './ConstitutionViewer'
 import MDEditor from '@uiw/react-md-editor'
 
 interface Spec {
@@ -122,6 +123,7 @@ export function SpecWorkbench() {
   const [isAgentPanelExpanded, setIsAgentPanelExpanded] = useState(true)
   const [isBasicDetailsCollapsed, setIsBasicDetailsCollapsed] = useState(false)
   const [isConstitutionEditorOpen, setIsConstitutionEditorOpen] = useState(false)
+  const [isConstitutionViewerOpen, setIsConstitutionViewerOpen] = useState(false)
   const [constitutionContent, setConstitutionContent] = useState('')
   const [isPopulatingConstitution, setIsPopulatingConstitution] = useState(false)
   const [constitutionPopulated, setConstitutionPopulated] = useState(false)
@@ -984,15 +986,26 @@ export function SpecWorkbench() {
                         <CheckCircle className="h-4 w-4" />
                         <span className="text-sm font-medium">Constitutional Framework Generated</span>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setIsConstitutionEditorOpen(true)}
-                        className="bg-figma-input-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray/20 hover:text-white"
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit Constitution
-                      </Button>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsConstitutionViewerOpen(true)}
+                          className="bg-figma-input-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray/20 hover:text-white"
+                        >
+                          <span className="h-3 w-3 mr-1">👁️</span>
+                          View Constitution
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsConstitutionEditorOpen(true)}
+                          className="bg-figma-input-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray/20 hover:text-white"
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Edit Constitution
+                        </Button>
+                      </div>
                     </div>
                     
                     <div className="bg-figma-dark-gray rounded-md p-4 max-h-96 overflow-y-auto">
@@ -1491,6 +1504,13 @@ Avoid:
           onClose={() => setIsConstitutionEditorOpen(false)} 
           specId={spec?.id}
           initialConstitution={constitutionContent}
+        />
+
+        <ConstitutionViewer
+          isOpen={isConstitutionViewerOpen}
+          onClose={() => setIsConstitutionViewerOpen(false)}
+          constitution={constitutionContent}
+          projectName={title}
         />
       </div>
     </div>
