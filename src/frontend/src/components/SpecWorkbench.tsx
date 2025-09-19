@@ -109,7 +109,7 @@ export function SpecWorkbench() {
   const [projectName, setProjectName] = useState<string>('')
   const [agentConfigured, setAgentConfigured] = useState<boolean>(false)
 
-  const [activeTab, setActiveTab] = useState<'constitution' | 'agent' | 'specify' | 'plan' | 'tasks'>('constitution')
+  const [activeTab, setActiveTab] = useState<'agent' | 'specify' | 'plan' | 'tasks'>('agent')
 
   const [specPhase, setSpecPhase] = useState<'specification' | 'plan' | 'tasks' | 'completed'>('specification')
   const [requirements, setRequirements] = useState('')
@@ -741,17 +741,6 @@ export function SpecWorkbench() {
               <CardContent>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => setActiveTab('constitution')}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                      activeTab === 'constitution' ? 'bg-blue-600 text-white' : 
-                      constitutionPopulated ? 'bg-green-600 text-white hover:bg-green-500' :
-                      'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                    }`}
-                  >
-                    <span className="mr-2">⚖️</span>
-                    Constitution
-                  </button>
-                  <button
                     onClick={() => setActiveTab('agent')}
                     disabled={!constitutionPopulated}
                     className={`px-4 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -885,7 +874,17 @@ export function SpecWorkbench() {
               {!isBasicDetailsCollapsed && (
                 <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="description" className="text-white">Description</Label>
+                  <Label htmlFor="title" className="text-white">Project Title</Label>
+                  <Input
+                    id="title"
+                    placeholder="e.g., Task Management System"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="description" className="text-white">Project Description</Label>
                   <Textarea
                     id="description"
                     placeholder="Brief description of the specification..."
@@ -925,6 +924,95 @@ export function SpecWorkbench() {
                 </div>
                 </CardContent>
               )}
+            </Card>
+
+            {/* Constitutional Foundation Section */}
+            <Card className="bg-figma-medium-gray border-figma-light-gray">
+              <CardHeader>
+                <CardTitle className="text-figma-text-primary flex items-center gap-2">
+                  <span>⚖️</span>
+                  Constitutional Foundation
+                </CardTitle>
+                <CardDescription className="text-figma-text-secondary">
+                  Generate the constitutional framework that will govern your project's development practices, inspired by <a href="https://github.com/github/spec-kit" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">spec-kit</a> methodology.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!constitutionPopulated ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-900/20 border border-blue-800/30 rounded-lg">
+                      <h4 className="text-sm font-medium text-blue-300 mb-2">Constitutional Approach</h4>
+                      <p className="text-xs text-blue-300/80">
+                        The constitutional foundation enforces architectural discipline by establishing core principles that govern all development decisions. This ensures consistency, quality, and maintainability across your project.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-white">Tech Stack (Optional)</Label>
+                        <Input
+                          placeholder="e.g., React, Node.js, PostgreSQL"
+                          value={techStack}
+                          onChange={(e) => setTechStack(e.target.value)}
+                          className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={handlePopulateConstitution}
+                      disabled={isPopulatingConstitution || !title || !description}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {isPopulatingConstitution ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Generating Constitutional Framework...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Generate Constitutional Framework
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 text-green-400">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">Constitutional Framework Generated</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsConstitutionEditorOpen(true)}
+                        className="bg-figma-input-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray/20 hover:text-white"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit Constitution
+                      </Button>
+                    </div>
+                    
+                    <div className="bg-figma-dark-gray rounded-md p-4 max-h-96 overflow-y-auto">
+                      <pre className="text-xs text-figma-text-primary whitespace-pre-wrap font-mono">
+                        {constitutionContent}
+                      </pre>
+                    </div>
+
+                    <div className="p-4 bg-green-900/20 border border-green-800/30 rounded-lg">
+                      <div className="flex items-center space-x-2 text-green-400 mb-2">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-sm font-medium">Constitutional Foundation Complete</span>
+                      </div>
+                      <p className="text-xs text-green-300/80">
+                        Your constitutional framework is established. You can now proceed to configure your AI agent and begin the spec-kit workflow.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
             </Card>
 
             {activeTab === 'specify' && (
@@ -1397,117 +1485,6 @@ Avoid:
         )}
 
         {/* Constitution Editor Modal */}
-        {activeTab === 'constitution' && (
-          <Card className="bg-figma-medium-gray border-figma-light-gray">
-            <CardHeader>
-              <CardTitle className="text-figma-text-primary flex items-center gap-2">
-                <span>⚖️</span>
-                Constitutional Foundation
-              </CardTitle>
-              <CardDescription className="text-figma-text-secondary">
-                Generate the constitutional framework that will govern your project's development practices, inspired by <a href="https://github.com/github/spec-kit" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline">spec-kit</a> methodology.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {!constitutionPopulated ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-blue-900/20 border border-blue-800/30 rounded-lg">
-                    <h4 className="text-sm font-medium text-blue-300 mb-2">Constitutional Approach</h4>
-                    <p className="text-xs text-blue-300/80">
-                      The constitutional foundation enforces architectural discipline by establishing core principles that govern all development decisions. This ensures consistency, quality, and maintainability across your project.
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <Label className="text-white">Project Title</Label>
-                      <Input
-                        placeholder="e.g., Task Management System"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-white">Project Description</Label>
-                      <textarea
-                        placeholder="Describe your project's purpose, goals, and key features..."
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        rows={3}
-                        className="w-full bg-figma-input-gray border border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary rounded-md px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-white">Tech Stack (Optional)</Label>
-                      <Input
-                        placeholder="e.g., React, Node.js, PostgreSQL"
-                        value={techStack}
-                        onChange={(e) => setTechStack(e.target.value)}
-                        className="bg-figma-input-gray border-figma-light-gray text-figma-text-primary placeholder-figma-text-secondary"
-                      />
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={handlePopulateConstitution}
-                    disabled={isPopulatingConstitution || !title || !description}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {isPopulatingConstitution ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Generating Constitutional Framework...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate Constitutional Framework
-                      </>
-                    )}
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-green-400">
-                      <CheckCircle className="h-4 w-4" />
-                      <span className="text-sm font-medium">Constitutional Framework Generated</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsConstitutionEditorOpen(true)}
-                      className="bg-figma-input-gray text-figma-text-primary border-figma-light-gray hover:bg-figma-light-gray/20 hover:text-white"
-                    >
-                      <Edit className="h-3 w-3 mr-1" />
-                      Edit Constitution
-                    </Button>
-                  </div>
-                  
-                  <div className="bg-figma-dark-gray rounded-md p-4 max-h-96 overflow-y-auto">
-                    <pre className="text-xs text-figma-text-primary whitespace-pre-wrap font-mono">
-                      {constitutionContent}
-                    </pre>
-                  </div>
-
-                  <Button
-                    onClick={() => {
-                      setActiveTab('agent')
-                      toast({
-                        title: "Ready for Agent Setup",
-                        description: "Constitutional foundation established. Proceed to configure your AI agent."
-                      })
-                    }}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    Continue to Agent Setup →
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         <ConstitutionEditor 
           isOpen={isConstitutionEditorOpen} 
