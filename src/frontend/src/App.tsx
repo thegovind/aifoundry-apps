@@ -13,6 +13,7 @@ import { AuthCallback } from './components/AuthCallback'
 import { UserDashboard } from './components/UserDashboard'
 import { Footer } from './components/Footer'
 import { Toaster } from './components/ui/toaster'
+import { PostTrainingPage } from './components/PostTrainingPage'
 
 export interface Template {
   id: string
@@ -137,6 +138,7 @@ function App() {
             <Route path="/spec/:specId" element={<SpecWorkbench />} />
             <Route path="/auth/github/callback" element={<AuthCallback />} />
             <Route path="/dashboard" element={<UserDashboard />} />
+            <Route path="/post-training" element={<PostTrainingPage />} />
           </Routes>
         </main>
         <Footer />

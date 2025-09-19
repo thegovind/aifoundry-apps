@@ -17,8 +17,8 @@ export function LandingPage() {
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-          {/* Spec-Kit: make prominent and wider */}
-          <Card className="lg:col-span-2 bg-figma-medium-gray border-figma-light-gray hover:border-emerald-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-emerald-400/10">
+          {/* Spec-Kit: now single column width */}
+          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-emerald-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-emerald-400/10">
             <CardHeader className="text-center pb-4">
               <div className="w-20 h-20 bg-figma-black rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg ring-2 ring-emerald-400/40">
                 <span className="text-6xl drop-shadow-sm" aria-hidden>🌱</span>
@@ -117,6 +117,32 @@ export function LandingPage() {
               <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors">
                 <Link to="/patterns" className="flex items-center justify-center">
                   Design Patterns
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-figma-medium-gray border-figma-light-gray hover:border-purple-400/40 transition-all duration-300 transform hover:scale-[1.005] shadow-lg hover:shadow-purple-400/10">
+            <CardHeader className="text-center pb-4">
+              <div className="w-16 h-16 bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl" aria-hidden>🧠</span>
+              </div>
+              <CardTitle className="text-2xl text-figma-text-primary">Post-training with RL</CardTitle>
+              <CardDescription className="text-figma-text-secondary">
+                Optimize well-defined workflows with RL on small language models using GRPO and post-training techniques
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
+                <li>• SFT warmup training</li>
+                <li>• GRPO optimization</li>
+                <li>• Azure ML deployment</li>
+                <li>• Phi-4 & Unsloth integration</li>
+              </ul>
+              <Button asChild className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700 border-0 shadow-lg hover:shadow-xl transition-all duration-300 font-medium py-3">
+                <Link to="/post-training" className="flex items-center justify-center">
+                  Start Post-training
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>

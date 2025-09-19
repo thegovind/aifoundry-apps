@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from .api.routes import auth, templates, specs, users, agents, progress, github
+from .api.routes import auth, templates, specs, users, agents, progress, github, post_training
 from .data.static_data import learning_resources_data, patterns_data
 from .models.schemas import LearningResource
 from .api.dependencies import get_template_service
@@ -43,6 +43,7 @@ app.include_router(users.router, prefix="/api/user", tags=["users"])
 app.include_router(agents.router, prefix="/api", tags=["agents"])
 app.include_router(progress.router, prefix="/api", tags=["progress"])
 app.include_router(github.router, prefix="/api", tags=["github"])
+app.include_router(post_training.router, prefix="/api/post-training", tags=["post-training"])
 
 @app.get("/healthz")
 async def healthz():
