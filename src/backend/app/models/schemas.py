@@ -142,3 +142,30 @@ class ConstitutionPopulateResponse(BaseModel):
     status: str
     constitution: str
     message: str
+
+class DatasetSearchRequest(BaseModel):
+    query: str
+    uploaded_file: Optional[str] = None
+
+class DatasetSearchResponse(BaseModel):
+    datasets: List[Dict[str, Any]]
+
+class HyperParameters(BaseModel):
+    learning_rate: float = 5e-5
+    batch_size: int = 4
+    num_epochs: int = 3
+    max_seq_length: int = 2048
+    lora_r: int = 16
+    lora_alpha: int = 32
+    lora_dropout: float = 0.1
+    warmup_steps: int = 100
+    grpo_beta: float = 0.1
+    grpo_group_size: int = 64
+
+class NotebookGenerationRequest(BaseModel):
+    dataset: Dict[str, Any]
+    hyperparameters: HyperParameters
+
+class NotebookGenerationResponse(BaseModel):
+    notebook_content: str
+    filename: str
