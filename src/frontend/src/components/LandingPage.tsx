@@ -29,35 +29,35 @@ export function LandingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
-              {/* Wider step showcase */}
-              <div className="bg-figma-black/60 rounded-lg p-6 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
-                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-4 hover:border-emerald-400/40 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-7 h-7 bg-emerald-500/20 rounded-full flex items-center justify-center">
+              {/* Condensed step showcase */}
+              <div className="bg-figma-black/60 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-1 gap-2 text-left">
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 hover:border-emerald-400/40 transition-colors">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 bg-emerald-500/20 rounded-full flex items-center justify-center">
                         <span className="text-emerald-300 text-xs font-bold">1</span>
                       </div>
-                      <span className="text-emerald-300 font-semibold">/specify</span>
+                      <span className="text-emerald-300 font-semibold text-sm">/specify</span>
                     </div>
-                    <div className="text-sm text-figma-text-secondary">Define the problem space, outcomes, and constraints.</div>
+                    <div className="text-xs text-figma-text-secondary">Define problem space and outcomes</div>
                   </div>
-                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-4 hover:border-emerald-400/40 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-7 h-7 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 hover:border-emerald-400/40 transition-colors">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 bg-emerald-500/20 rounded-full flex items-center justify-center">
                         <span className="text-emerald-300 text-xs font-bold">2</span>
                       </div>
-                      <span className="text-emerald-300 font-semibold">/plan</span>
+                      <span className="text-emerald-300 font-semibold text-sm">/plan</span>
                     </div>
-                    <div className="text-sm text-figma-text-secondary">Design technical architecture and governance contracts.</div>
+                    <div className="text-xs text-figma-text-secondary">Design architecture and contracts</div>
                   </div>
-                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-4 hover:border-emerald-400/40 transition-colors">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-7 h-7 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                  <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3 hover:border-emerald-400/40 transition-colors">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 bg-emerald-500/20 rounded-full flex items-center justify-center">
                         <span className="text-emerald-300 text-xs font-bold">3</span>
                       </div>
-                      <span className="text-emerald-300 font-semibold">/tasks</span>
+                      <span className="text-emerald-300 font-semibold text-sm">/tasks</span>
                     </div>
-                    <div className="text-sm text-figma-text-secondary">Break down into actionable, testable implementation tasks.</div>
+                    <div className="text-xs text-figma-text-secondary">Break down into actionable tasks</div>
                   </div>
                 </div>
               </div>
@@ -83,10 +83,10 @@ export function LandingPage() {
             <CardContent className="text-center">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
                 <li>• Ready-to-use AI solutions</li>
-                <li>• Multiple languages &amp; frameworks</li>
+                <li>• Multiple languages & frameworks</li>
                 <li>• SWE agent integration</li>
               </ul>
-              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors">
+              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors py-3">
                 <Link to="/templates" className="flex items-center justify-center">
                   Configure Templates
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -110,11 +110,11 @@ export function LandingPage() {
             </CardHeader>
             <CardContent className="text-center">
               <ul className="text-sm text-figma-text-secondary mb-6 space-y-2">
-                <li>• Prompt Chaining &amp; Routing</li>
-                <li>• Parallelization &amp; Orchestration</li>
+                <li>• Prompt Chaining & Routing</li>
+                <li>• Parallelization & Orchestration</li>
                 <li>• Evaluator-Optimizer patterns</li>
               </ul>
-              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors">
+              <Button asChild className="w-full bg-white text-black hover:bg-gray-800 hover:text-white border border-gray-300 hover:border-gray-800 transition-colors py-3">
                 <Link to="/patterns" className="flex items-center justify-center">
                   Design Patterns
                   <ArrowRight className="ml-2 h-4 w-4" />
@@ -128,7 +128,10 @@ export function LandingPage() {
               <div className="w-16 h-16 bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl" aria-hidden>🧠</span>
               </div>
-              <CardTitle className="text-2xl text-figma-text-primary">Post-training with RL</CardTitle>
+              <CardTitle className="text-2xl text-figma-text-primary flex items-center justify-center gap-2">
+                Post-training with RL
+                <span className="text-sm bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded-full" title="Work in Progress">WIP</span>
+              </CardTitle>
               <CardDescription className="text-figma-text-secondary">
                 Optimize well-defined workflows with RL on small language models using GRPO and post-training techniques
               </CardDescription>
